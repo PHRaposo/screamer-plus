@@ -6,5 +6,5 @@
 
 (asdf:defsystem :screamer-plus
   :serial t
-  :depends-on (:screamer)
+  :depends-on (:screamer :closer-mop)
   :components ((:file "screamer-plus")))
