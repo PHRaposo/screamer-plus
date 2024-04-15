@@ -2,6 +2,7 @@
 
 ;; EXAMPLES FROM SCREAMER-PLUS.PDF
 
+#|
 ;; A SCREAMER+ Program to Play the Mastermind Game
 (defun mastermind () ;<== NOT WORKING
   (if (catch 'fail
@@ -43,6 +44,7 @@
   (format t "Your replies must have been inconsistent.~%")
   )
 )
+|#
 
 ;; A SCREAMER+ Program for Solving an Instance of the Car Sequencing
 ;; Problem with 10 Cars
