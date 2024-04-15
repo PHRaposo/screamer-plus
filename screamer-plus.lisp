@@ -253,9 +253,9 @@
 
 
 (defun slot-names-of (obj)
- (mapcar #'ccl::slot-definition-name (c2mop::class-slots (class-of obj))))
-  ;(mapcar #'(lambda(x) (slot-value x 'c2mop::NAME))
-  ;  (c2mop::class-slots (class-of obj))))
+ (mapcar #'(lambda(x) (slot-value x 'c2mop::NAME))
+  (c2mop::class-slots (class-of obj))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
@@ -384,8 +384,8 @@
 
 
 (defun slot-names-of (obj)
-  (mapcar #'(lambda(x) (slot-value x 'c2mop::NAME))
-    (c2mop::class-slots (class-of obj))))
+ (mapcar #'(lambda(x) (slot-value x 'c2mop::NAME))
+  (c2mop::class-slots (class-of obj))))
 
 
 (defun objectp (var)
