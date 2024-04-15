@@ -9,7 +9,7 @@
 #### SCREAMER+ - increasing the expressiveness of SCREAMER
 
 
-##### The Additional Constraint Primitives of SCREAMER+
+#### The Additional Constraint Primitives of SCREAMER+
 
 
 For more information see [DOCUMENTATION](https://github.com/PHRaposo/screamer-plus/blob/master/doc/screamer-plus.pdf).
