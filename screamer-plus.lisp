@@ -2864,31 +2864,38 @@
       ;; This noticer added 27.10.98
       ;; It ensures that when z is further restricted, the domain of objvar is
       ;; again tested for consistency with the new domain of z
-      (screamer::attach-noticer!
-        #'(lambda()
-            (when (and (bound? objvar)
-                    (slot-boundp (value-of objvar) slotname)
-                    )
-              (assert! (equalv z (funcallv #'slot-value objvar slotname)))
-              )
-            (when (and (not (bound? z))
-                    (not (bound? objvar))
-                    (enumerated-domain-p z))))
-        z)     
+	  
+	  ;; The idea of this bit is that if the slot-value is known, but
+	  ;; the object isn't, some objects could be ruled out because
+	  ;; they don't have the right slot-value
+	  ;; Unfortunately, it wasn't working very well so I commented it
+	  ;; out on 3/3/99
+	  ;; I think I probably need to test for consistency, rather than
+	  ;; just equality
+	  ;; (assert!-memberv-internal objvar (remove-if-not  #'(lambda(x)
+	  ;; (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
+	  ;; (variable-enumerated-domain objvar)))
+	  
+      ;(screamer::attach-noticer!
+      ;  #'(lambda()
+      ;      (when (and (bound? objvar)
+      ;              (slot-boundp (value-of objvar) slotname)
+      ;              )
+      ;        (assert! (equalv z (funcallv #'slot-value objvar slotname)))
+      ;        )
+      ;      (when (and (not (bound? z))
+      ;              (not (bound? objvar))
+      ;              (enumerated-domain-p z))
+	  ;   	     (assert!-memberv-internal objvar 
+	  ;	   				       (remove-if-not #'(lambda(x)
+	  ;                         (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
+	  ;	   					   (variable-enumerated-domain objvar))			  
+	  ;	   			       )											 			   
+	  ;				))
+      ;  z) 
+	      
       z)))
-
-;; The idea of this bit is that if the slot-value is known, but
-;; the object isn't, some objects could be ruled out because
-;; they don't have the right slot-value
-;; Unfortunately, it wasn't working very well so I commented it
-;; out on 3/3/99
-;; I think I probably need to test for consistency, rather than
-;; just equality
-;; (assert!-memberv-internal objvar (remove-if-not  #'(lambda(x)
-;; (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
-;; (variable-enumerated-domain objvar)))	             
-         
-
+       
 ;;; This function returns true when all the slots which are bound in both
 ;;; objects are equal
 
@@ -2977,6 +2984,3 @@
 ;;; (Comment by Simon White on 28/5/1997 at 13:13
 ;;; Reset the variable to its default so that errors are signalled again
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
