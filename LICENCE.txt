@@ -1,0 +1,32 @@
+
+            ===================================================
+            ===                 SCREAMER+                   ===
+            ===  increasing the expressiveness of SCREAMER  ===
+            ===================================================
+
+                 Copyright 1998-2000 University of Aberdeen
+                  
+This source code may be used cost-free for non-commercial use. However,
+I request that you provide me with a short description of how you are
+using the software so that I can build up a profile of applications.
+You are free to modify and extend the source code, but please report any 
+bugs found (together with any fixes), so that the quality of the code can
+be improved. 
+
+You may not distribute the code without prior consent from me.
+
+This software represents "work in progress" and is not (guaranteed to be) 
+ bug-free!
+
+And remember...
+      'Sometimes a scream is better than a thesis'...
+
+Happy Screaming!
+
+Simon White, February 2000                          swhite@csd.abdn.ac.uk
+
+Department of Computing Science
+ King's College
+University of Aberdeen
+ Aberdeen AB24 3UE
+Scotland, UK.
