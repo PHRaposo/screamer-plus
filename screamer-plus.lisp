@@ -253,7 +253,7 @@
 
 
 (defun slot-names-of (obj)
- (mapcar #'(lambda(x) (slot-value x 'c2mop::NAME))
+ (mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
   (c2mop::class-slots (class-of obj))))
 
 
@@ -384,7 +384,7 @@
 
 
 (defun slot-names-of (obj)
- (mapcar #'(lambda(x) (slot-value x 'c2mop::NAME))
+ (mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
   (c2mop::class-slots (class-of obj))))
 
 
@@ -688,10 +688,10 @@
 	     ;; domain are all bound
 	     (when (and (not (bound? el))
 			(enumerated-domain-p el)
-			(every #'(lambda(x) (and (listp x) (bound? (nth (value-of n) x)))) 
+			(every #'(lambda (x) (and (listp x) (bound? (nth (value-of n) x)))) 
 			       (variable-enumerated-domain el))
 			)
-	       (assert!-memberv-internal z (mapcar #'(lambda(x) (nth (value-of n) x))
+	       (assert!-memberv-internal z (mapcar #'(lambda (x) (nth (value-of n) x))
                                              (variable-enumerated-domain el))))
 	     ;; propagate the actual value
 	     (when (listp (value-of el))
@@ -1148,17 +1148,17 @@
     ;(format t "Function name is ~a~%" fn-name)
     (setq cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
     ;(format t "Constraint function name is ~a~%" cfn-name)
-    (if (fboundp cfn-name)
-	(symbol-function cfn-name)
-      (function
-       (lambda(&rest args)
-	 (value-of (applyv (value-of f) args))
-	 )
-       )
-      )
-    )
+    (if (screamer::valid-function-name? fn-name)
+		(if (fboundp cfn-name)
+	         (symbol-function cfn-name)
+	        (function (lambda (&rest args)
+	                   (value-of (applyv (value-of f) args)))
+		))
+        (function (lambda (&rest args)
+                   (value-of (applyv (value-of f) args))))
+     )
+   )
   )
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: funcallinv
@@ -1286,7 +1286,7 @@
 		(assert! 
 		 (memberv el
 			  (remove-if-not
-			   #'(lambda(x) (or (typep x type) (variable? x)))
+			   #'(lambda (x) (or (typep x type) (variable? x)))
 			   (variable-enumerated-domain el)
 			   )
 			  )
@@ -1356,7 +1356,7 @@
 
 (defun formatv (&rest args)
   (if (every #'ground? args)
-      (apply #'format (mapcar #'(lambda(x)
+      (apply #'format (mapcar #'(lambda (x)
 				  (if (stringp x)
 				      x
 				    (apply-substitution  x)
@@ -2573,7 +2573,7 @@
    (let (z domain-reducer)
       
       (setq z (equalv
-                (funcallv #'(lambda(x) (class-name (class-of x))) obj)
+                (funcallv #'(lambda (x) (class-name (class-of x))) obj)
                 name))  
    
       ;; This noticer tries to reduce the domain of obj if z is bound 
@@ -2587,11 +2587,11 @@
               (setf (variable-enumerated-domain obj)
                     (if (value-of z)
                        (remove-if-not 
-                         #'(lambda(x) (or (typep x name) (typep x 'screamer::variable)))
+                         #'(lambda (x) (or (typep x name) (typep x 'screamer::variable)))
                          (variable-enumerated-domain obj)
                          )
                        (remove-if 
-                         #'(lambda(x) (typep x name))
+                         #'(lambda (x) (typep x name))
                          (variable-enumerated-domain obj)
                          )
                        )
@@ -2692,7 +2692,7 @@
                        (enumerated-domain-p obj)
                        (bound? slotname)
                        )
-               (assert! (memberv z (mapcar #'(lambda(x) (slot-exists-p x (value-of slotname)))
+               (assert! (memberv z (mapcar #'(lambda (x) (slot-exists-p x (value-of slotname)))
                                      (variable-enumerated-domain obj)))
                  )
                )
@@ -2856,9 +2856,9 @@
             (when (bound? objvar) ; and (slot-boundp (value-of objvar) slotname) ?
               (assert! (equalv z (slot-value (value-of objvar) (value-of slotname)))))
             (when (and (not (bound? objvar)) (enumerated-domain-p objvar))
-              ;; (format t "One of ~a~%" (mapcar #'(lambda(x) (slot-value x slotname)) 
+              ;; (format t "One of ~a~%" (mapcar #'(lambda (x) (slot-value x slotname)) 
               ;; (variable-enumerated-domain objvar)))
-              (assert!-memberv-internal z (mapcar #'(lambda(x) (slot-value x slotname))
+              (assert!-memberv-internal z (mapcar #'(lambda (x) (slot-value x slotname))
                                             (variable-enumerated-domain objvar)))))
         objvar)
 
@@ -2873,7 +2873,7 @@
 	  ;; out on 3/3/99
 	  ;; I think I probably need to test for consistency, rather than
 	  ;; just equality
-	  ;; (assert!-memberv-internal objvar (remove-if-not  #'(lambda(x)
+	  ;; (assert!-memberv-internal objvar (remove-if-not  #'(lambda (x)
 	  ;; (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
 	  ;; (variable-enumerated-domain objvar)))
 	  
@@ -2888,7 +2888,7 @@
       ;              (not (bound? objvar))
       ;              (enumerated-domain-p z))
 	  ;   	     (assert!-memberv-internal objvar 
-	  ;	   				       (remove-if-not #'(lambda(x)
+	  ;	   				       (remove-if-not #'(lambda (x)
 	  ;                         (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
 	  ;	   					   (variable-enumerated-domain objvar))			  
 	  ;	   			       )											 			   
