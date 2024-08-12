@@ -118,7 +118,7 @@
     :slot-valuev :class-ofv :class-namev  :slot-exists-pv :reconcile
     :funcallinv :mapcarv :maplistv :everyv :somev :noteveryv :notanyv
     :at-leastv :at-mostv :exactlyv :constraint-fn :formatv :*enumeration-limit*
-    :carefully :slot-names-of :objectp :eqv :funcallgv :setq-domains :make-setv :sort-rem-dupv)    
+    :carefully :slot-names-of :objectp :eqv :funcallgv :setq-domains)    
   (:export ;; screamer
     :either :local :global :for-effects :local-output :multiple-value-call-nondeterministic
     :nondeterministic-function? :funcall-nondeterministic :apply-nondeterministic :unwind-trail
