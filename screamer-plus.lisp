@@ -73,6 +73,12 @@
 ;;; 05/09/1999          Repaired bug in ifv
 ;;; 17/02/2000          Changed defpackage so that symbol names are consistent
 ;;;                     across packages.
+;;; 
+;;; 11/08/2024 	       Substituted all DEFMACROS for SCREAMER::DEFMACRO-COMPILE-TIME (phraposo)
+;;;
+;;; 12/08/2024         Changed definition of CONSTRAINT-FN:
+;;; 				   Included SCREAMER::VALID-FUNCTION-NAME test. (phraposo)
+;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -102,7 +108,7 @@
     :defun :multiple-value-bind :y-or-n-p)
   (:import-from :screamer 
     :known?-true :known?-false :variable-enumerated-domain :variable-enumerated-antidomain
-    :assert!-equalv :assert!-constraint :assert!-memberv-internal :variable? :attach-noticer!)
+    :assert!-equalv :assert!-constraint :assert!-memberv-internal :variable? :attach-noticer! :defmacro-compile-time)
   (:export ;; screamer+
     :listpv :conspv :symbolpv :stringpv :typepv :a-listv :a-consv :a-symbolv
     :a-stringv :a-typed-varv :impliesv :not-equalv :?? :ifv :make-equal
@@ -112,7 +118,7 @@
     :slot-valuev :class-ofv :class-namev  :slot-exists-pv :reconcile
     :funcallinv :mapcarv :maplistv :everyv :somev :noteveryv :notanyv
     :at-leastv :at-mostv :exactlyv :constraint-fn :formatv :*enumeration-limit*
-    :carefully :slot-names-of :objectp :eqv :funcallgv :setq-domains)    
+    :carefully :slot-names-of :objectp :eqv :funcallgv :setq-domains :make-setv :sort-rem-dupv)    
   (:export ;; screamer
     :either :local :global :for-effects :local-output :multiple-value-call-nondeterministic
     :nondeterministic-function? :funcall-nondeterministic :apply-nondeterministic :unwind-trail
@@ -149,11 +155,24 @@
 ;;; value-of has already been applied to x
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro objectp (var)
+(defmacro-compile-time objectp (var)
   "Determines whether a variable is a standard CLOS object or not"
   `(typep ,var 'standard-object))
 
+#+lispworks
+(defun slot-names-of (obj)
+ (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
+  (clos::class-slots (class-of obj))))
 
+#+sbcl
+(defun slot-names-of (obj)
+ (mapcar #'(lambda(x) (slot-value x 'SB-PCL::NAME))
+  (c2mop::class-slots (class-of obj))))
+
+;;(defun slot-names-of (obj)
+;; (mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
+;;  (c2mop::class-slots (class-of obj))))
+   
 (defun variables-in (x &aux slots)
   (typecase x
    (cons             (append (variables-in (value-of (car x))) (variables-in (cdr x))))
@@ -251,12 +270,6 @@
             argument))
         z))))
 
-
-(defun slot-names-of (obj)
- (mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
-  (c2mop::class-slots (class-of obj))))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -274,7 +287,7 @@
 
 
 ;;; A shorthand
-(defmacro setq-domains (vars vals &aux (res nil))
+(defmacro-compile-time setq-domains (vars vals &aux (res nil))
   ;; Replaced append with an nconc 8/7/00
   (dolist (var vars) (setq res (nconc (list var vals) res)))
   (cons 'setq res))
@@ -364,7 +377,7 @@
 ;;; >
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro carefully (&body forms)
+(defmacro-compile-time carefully (&body forms)
   `(let (retval)     
      (setq retval (carefully-evaluate ,(car forms)))
      (if (> ,(length forms) 1)
@@ -372,7 +385,7 @@
        retval)))
 
 
-(defmacro carefully-evaluate (form)
+(defmacro-compile-time carefully-evaluate (form)
   `(let (error-found)
      (setq error-found (multiple-value-list (ignore-errors ,form)))
      (if (and (= (length error-found) 2)
@@ -382,10 +395,19 @@
 	 (warn "~s failed" (quote ,form))
        (apply #'values error-found))))
 
-
+#+lispworks 
 (defun slot-names-of (obj)
- (mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
-  (c2mop::class-slots (class-of obj))))
+ (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
+  (clos::class-slots (class-of obj))))
+  
+#+sbcl
+(defun slot-names-of (obj)
+  (mapcar #'(lambda(x) (slot-value x 'SB-PCL::NAME))
+   (c2mop::class-slots (class-of obj))))
+  
+;(defun slot-names-of (obj)
+;(mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
+ ;(c2mop::class-slots (class-of obj))))
 
 
 (defun objectp (var)
@@ -437,7 +459,7 @@
 ;;; PROPAGATION PROPERTIES: as for equalv, except that no propagation occurs
 ;;; if the equality assertion fails.
 
-(defmacro make-equal (var value &optional (retval '(fail)))
+(defmacro-compile-time make-equal (var value &optional (retval '(fail)))
   `(if (possibly? (equalv ,var ,value))
        (progn
 	 (assert! (equalv ,var ,value))
@@ -450,7 +472,7 @@
        (values ,retval))))
 
 
-(defmacro ifv (condition exp1 &optional (exp2 nil))
+(defmacro-compile-time ifv (condition exp1 &optional (exp2 nil))
   ;; If the condition is bound then there is no need to create additional
   ;; constraint variables
   `(let ((c ,condition))
@@ -637,11 +659,11 @@
 ;;; Some variables for constraining values in positions of lists
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro firstv (el) `(carv ,el))
-(defmacro secondv (el) `(nthv 1 ,el))
-(defmacro thirdv (el) `(nthv 2 ,el))
-(defmacro fourthv (el) `(nthv 3 ,el))
-(defmacro restv (el) `(cdrv ,el))
+(defmacro-compile-time firstv (el) `(carv ,el))
+(defmacro-compile-time secondv (el) `(nthv 1 ,el))
+(defmacro-compile-time thirdv (el) `(nthv 2 ,el))
+(defmacro-compile-time fourthv (el) `(nthv 3 ,el))
+(defmacro-compile-time restv (el) `(cdrv ,el))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -688,10 +710,10 @@
 	     ;; domain are all bound
 	     (when (and (not (bound? el))
 			(enumerated-domain-p el)
-			(every #'(lambda (x) (and (listp x) (bound? (nth (value-of n) x)))) 
+			(every #'(lambda(x) (and (listp x) (bound? (nth (value-of n) x)))) 
 			       (variable-enumerated-domain el))
 			)
-	       (assert!-memberv-internal z (mapcar #'(lambda (x) (nth (value-of n) x))
+	       (assert!-memberv-internal z (mapcar #'(lambda(x) (nth (value-of n) x))
                                              (variable-enumerated-domain el))))
 	     ;; propagate the actual value
 	     (when (listp (value-of el))
@@ -1160,6 +1182,7 @@
    )
   )
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: funcallinv
 ;;;
@@ -1227,10 +1250,10 @@
 ;;; Some functions for constraining elements to be of a specific type
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro listpv (el) `(typepv ,el 'list))
-(defmacro conspv (el) `(typepv ,el 'cons))
-(defmacro symbolpv (el) `(typepv ,el symbol))
-(defmacro stringpv (el) `(typepv ,el 'string))
+(defmacro-compile-time listpv (el) `(typepv ,el 'list))
+(defmacro-compile-time conspv (el) `(typepv ,el 'cons))
+(defmacro-compile-time symbolpv (el) `(typepv ,el symbol))
+(defmacro-compile-time stringpv (el) `(typepv ,el 'string))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1286,7 +1309,7 @@
 		(assert! 
 		 (memberv el
 			  (remove-if-not
-			   #'(lambda (x) (or (typep x type) (variable? x)))
+			   #'(lambda(x) (or (typep x type) (variable? x)))
 			   (variable-enumerated-domain el)
 			   )
 			  )
@@ -1310,10 +1333,10 @@
 ;;; Some functions & macros for generating variables of a specific type
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro a-listv () '(a-typed-varv 'list))
-(defmacro a-consv () '(a-typed-varv 'cons))
-(defmacro a-symbolv () '(a-typed-varv 'symbol))
-(defmacro a-stringv () '(a-typed-varv 'string))
+(defmacro-compile-time a-listv () '(a-typed-varv 'list))
+(defmacro-compile-time a-consv () '(a-typed-varv 'cons))
+(defmacro-compile-time a-symbolv () '(a-typed-varv 'symbol))
+(defmacro-compile-time a-stringv () '(a-typed-varv 'string))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: a-typed-varv
@@ -1356,7 +1379,7 @@
 
 (defun formatv (&rest args)
   (if (every #'ground? args)
-      (apply #'format (mapcar #'(lambda (x)
+      (apply #'format (mapcar #'(lambda(x)
 				  (if (stringp x)
 				      x
 				    (apply-substitution  x)
@@ -1596,7 +1619,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defmacro at-mostv (n f &rest x)
+(defmacro-compile-time at-mostv (n f &rest x)
   `(at-mostv-internal ,n ,f ,@x))
 
  
@@ -1708,7 +1731,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defmacro at-leastv (n f &rest x)
+(defmacro-compile-time at-leastv (n f &rest x)
   `(at-leastv-internal ,n ,f ,@x))
 
 
@@ -1831,7 +1854,7 @@
 ;;;  )
 
 
-(defmacro exactlyv (n f &rest x)
+(defmacro-compile-time exactlyv (n f &rest x)
   `(exactlyv-internal ,n ,f ,@x))
 
 (defun exactlyv-internal (n f &rest x)
@@ -2573,7 +2596,7 @@
    (let (z domain-reducer)
       
       (setq z (equalv
-                (funcallv #'(lambda (x) (class-name (class-of x))) obj)
+                (funcallv #'(lambda(x) (class-name (class-of x))) obj)
                 name))  
    
       ;; This noticer tries to reduce the domain of obj if z is bound 
@@ -2587,11 +2610,11 @@
               (setf (variable-enumerated-domain obj)
                     (if (value-of z)
                        (remove-if-not 
-                         #'(lambda (x) (or (typep x name) (typep x 'screamer::variable)))
+                         #'(lambda(x) (or (typep x name) (typep x 'screamer::variable)))
                          (variable-enumerated-domain obj)
                          )
                        (remove-if 
-                         #'(lambda (x) (typep x name))
+                         #'(lambda(x) (typep x name))
                          (variable-enumerated-domain obj)
                          )
                        )
@@ -2692,7 +2715,7 @@
                        (enumerated-domain-p obj)
                        (bound? slotname)
                        )
-               (assert! (memberv z (mapcar #'(lambda (x) (slot-exists-p x (value-of slotname)))
+               (assert! (memberv z (mapcar #'(lambda(x) (slot-exists-p x (value-of slotname)))
                                      (variable-enumerated-domain obj)))
                  )
                )
@@ -2856,26 +2879,15 @@
             (when (bound? objvar) ; and (slot-boundp (value-of objvar) slotname) ?
               (assert! (equalv z (slot-value (value-of objvar) (value-of slotname)))))
             (when (and (not (bound? objvar)) (enumerated-domain-p objvar))
-              ;; (format t "One of ~a~%" (mapcar #'(lambda (x) (slot-value x slotname)) 
+              ;; (format t "One of ~a~%" (mapcar #'(lambda(x) (slot-value x slotname)) 
               ;; (variable-enumerated-domain objvar)))
-              (assert!-memberv-internal z (mapcar #'(lambda (x) (slot-value x slotname))
+              (assert!-memberv-internal z (mapcar #'(lambda(x) (slot-value x slotname))
                                             (variable-enumerated-domain objvar)))))
         objvar)
 
       ;; This noticer added 27.10.98
       ;; It ensures that when z is further restricted, the domain of objvar is
       ;; again tested for consistency with the new domain of z
-	  
-	  ;; The idea of this bit is that if the slot-value is known, but
-	  ;; the object isn't, some objects could be ruled out because
-	  ;; they don't have the right slot-value
-	  ;; Unfortunately, it wasn't working very well so I commented it
-	  ;; out on 3/3/99
-	  ;; I think I probably need to test for consistency, rather than
-	  ;; just equality
-	  ;; (assert!-memberv-internal objvar (remove-if-not  #'(lambda (x)
-	  ;; (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
-	  ;; (variable-enumerated-domain objvar)))
 	  
       ;(screamer::attach-noticer!
       ;  #'(lambda()
@@ -2887,16 +2899,27 @@
       ;      (when (and (not (bound? z))
       ;              (not (bound? objvar))
       ;              (enumerated-domain-p z))
-	  ;   	     (assert!-memberv-internal objvar 
-	  ;	   				       (remove-if-not #'(lambda (x)
-	  ;                         (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
-	  ;	   					   (variable-enumerated-domain objvar))			  
-	  ;	   			       )											 			   
+	  ;   	     (assert!-memberv-internal objvar
+	  ;   				       (remove-if-not #'(lambda(x) (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
+	  ;	   						      (variable-enumerated-domain objvar))		  
+	  ;	   			       )													   
 	  ;				))
       ;  z) 
 	      
       z)))
-       
+
+;; The idea of this bit is that if the slot-value is known, but
+;; the object isn't, some objects could be ruled out because
+;; they don't have the right slot-value
+;; Unfortunately, it wasn't working very well so I commented it
+;; out on 3/3/99
+;; I think I probably need to test for consistency, rather than
+;; just equality
+;; (assert!-memberv-internal objvar (remove-if-not  #'(lambda(x)
+;; (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
+;; (variable-enumerated-domain objvar)))	             
+         
+
 ;;; This function returns true when all the slots which are bound in both
 ;;; objects are equal
 

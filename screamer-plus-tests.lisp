@@ -2,9 +2,8 @@
 
 ;; EXAMPLES FROM SCREAMER-PLUS.PDF
 
-#|
 ;; A SCREAMER+ Program to Play the Mastermind Game
-(defun mastermind () ;<== NOT WORKING
+(defun mastermind ()
   (if (catch 'fail
        (let* (
               (colours '(red green blue yellow white black))
@@ -44,10 +43,35 @@
   (format t "Your replies must have been inconsistent.~%")
   )
 )
-|#
+
+;; Choose four colors among BLUE YELLOW WHITE BLACK RED GREEN in a specific order.
+;; EXAMPLE: RED WHITE GREEN BLUE
+;; > (mastermind) 
+	
+;; My guess is (BLACK WHITE YELLOW BLUE)
+;; How many are the right colour and correctly positioned ? 
+;; > 2
+;; How many are the right colour ? 
+;; > 2
+
+;; My guess is (BLACK WHITE GREEN RED)
+;;How many are the right colour and correctly positioned ? 
+;; > 2
+;; How many are the right colour ? 
+;; > 3
+
+;; My guess is (BLACK GREEN YELLOW RED)
+;; How many are the right colour and correctly positioned ?
+;; > 0
+;; How many are the right colour ? 
+;; > 2
+
+;; The code is (RED WHITE GREEN BLUE)
+;; T
+
 
 ;; A SCREAMER+ Program for Solving an Instance of the Car Sequencing
-;; Problem with 10 Cars
+;; Problem with 10 Cars 
 
 (defclass car-type ()
 ((option-1 :initarg :o1)
@@ -68,7 +92,7 @@
        (capacity-size (caddr (assoc which-option *capacities*)))
 	   (countdown (length sequence) (- countdown capacity-size))
 	   (options-left cars-with-option (- options-left capacity))
-	   (fn (constraint-fn #'(lambda(x) (slot-value x which-option)))))
+	   (fn (constraint-fn #'(lambda (x) (slot-value x which-option)))))
    ((< countdown 0) t)
   (assert! (at-leastv options-left fn (subseq sequence 0 countdown)))))
 
@@ -82,7 +106,7 @@
      ((endp sub) t)
   (assert!
    (at-mostv maxnum-in-sub
-            (constraint-fn #'(lambda(x) (slot-value x which-option))) s))))
+            (constraint-fn #'(lambda (x) (slot-value x which-option))) s))))
 
 (defun count-numbers (car-dist which-option)
  (do* ((count 0)
@@ -116,9 +140,21 @@
    (assert!
     (exactlyv
      (cdr ty)
-     (eval `(constraint-fn (function (lambda(x) (equal x ,(car ty))))))
+     (eval `(constraint-fn (function (lambda (x) (equal x ,(car ty))))))
    seq)))
   (dolist (o *capacities*)
    (assert-capacities seq (car o))
    (surrogate seq (count-numbers car-dist (car o)) (car o)))
   (all-values (solution seq (static-ordering #'linear-force)))))
+
+(cl::defun car-sequencing-problem ()
+ (let ((solutions (solve)))
+  (loop for sol in solutions 
+	    for x from 1
+        do (progn (print (format nil "SOLUTION ~A.~%" x))
+		   (loop for car in sol 
+			   for y from 1
+			   do (progn (print (format nil "CAR NUMBER ~A:~%" y)) 
+				   (print (describe car))))))))
+
+;; >(car-sequencing-problem)
