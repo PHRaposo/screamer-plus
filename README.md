@@ -2,7 +2,7 @@
 ====================================
 
 
-#### by S. White & D. Sleeman
+#### by S. White
 ##### Copyright 1998-2000 University of Aberdeen
 
 
