@@ -77,7 +77,9 @@
 ;;; 11/08/2024 	       Substituted all DEFMACROS for SCREAMER::DEFMACRO-COMPILE-TIME (phraposo)
 ;;;
 ;;; 12/08/2024         Changed definition of CONSTRAINT-FN:
-;;; 				   Included SCREAMER::VALID-FUNCTION-NAME test. (phraposo)
+;;; 		       Included SCREAMER::VALID-FUNCTION-NAME test. (phraposo)
+;;;
+;;; 02/09/2024         Removed macro CAREFULLY (not working!)
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -108,7 +110,7 @@
     :defun :multiple-value-bind :y-or-n-p)
   (:import-from :screamer 
     :known?-true :known?-false :variable-enumerated-domain :variable-enumerated-antidomain
-    :assert!-equalv :assert!-constraint :assert!-memberv-internal :variable? :attach-noticer! :defmacro-compile-time)
+    :assert!-equalv :assert!-constraint :assert!-memberv-internal :variable? :attach-noticer!)
   (:export ;; screamer+
     :listpv :conspv :symbolpv :stringpv :typepv :a-listv :a-consv :a-symbolv
     :a-stringv :a-typed-varv :impliesv :not-equalv :?? :ifv :make-equal
@@ -155,24 +157,11 @@
 ;;; value-of has already been applied to x
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro-compile-time objectp (var)
+(screamer::defmacro-compile-time objectp (var)
   "Determines whether a variable is a standard CLOS object or not"
   `(typep ,var 'standard-object))
 
-#+lispworks
-(defun slot-names-of (obj)
- (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
-  (clos::class-slots (class-of obj))))
 
-#+sbcl
-(defun slot-names-of (obj)
- (mapcar #'(lambda(x) (slot-value x 'SB-PCL::NAME))
-  (c2mop::class-slots (class-of obj))))
-
-;;(defun slot-names-of (obj)
-;; (mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
-;;  (c2mop::class-slots (class-of obj))))
-   
 (defun variables-in (x &aux slots)
   (typecase x
    (cons             (append (variables-in (value-of (car x))) (variables-in (cdr x))))
@@ -270,6 +259,21 @@
             argument))
         z))))
 
+
+(defun slot-names-of (obj)
+ #-sbcl
+ (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
+        (clos::class-slots (class-of obj)))
+ #+sbcl
+ (mapcar #'sb-mop:slot-definition-name
+        (sb-mop:class-slots (class-of obj)))
+  )
+
+
+;(defun slot-names-of (obj)
+;(mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
+ ;(c2mop::class-slots (class-of obj))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -278,7 +282,7 @@
 (in-package :screamer+)
 
 ;;; A variable holding the number of the SCREAMER+ version
-(defvar *screamer+-version* "0.1")
+(defvar *screamer+-version* "0.1.1")
 
 ;;; When propagating values, sometimes the derived enumerated domains can
 ;;; have very big domain sizes. This variable sets a limit on the size of
@@ -287,7 +291,7 @@
 
 
 ;;; A shorthand
-(defmacro-compile-time setq-domains (vars vals &aux (res nil))
+(screamer::defmacro-compile-time setq-domains (vars vals &aux (res nil))
   ;; Replaced append with an nconc 8/7/00
   (dolist (var vars) (setq res (nconc (list var vals) res)))
   (cons 'setq res))
@@ -377,33 +381,37 @@
 ;;; >
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro-compile-time carefully (&body forms)
-  `(let (retval)     
-     (setq retval (carefully-evaluate ,(car forms)))
-     (if (> ,(length forms) 1)
-       (carefully ,@(rest forms))
-       retval)))
+;; FIXME: CAREFULLY MACRO AND CAREFULLY-EVALUATE NOT WORKING!
+;(defmacro carefully (&body forms)
+;  `(let (retval)     
+;     (setq retval (carefully-evaluate ,(car forms)))
+;     (if (> ,(length forms) 1)
+;       (carefully ,@(rest forms))
+;       retval)))
 
 
-(defmacro-compile-time carefully-evaluate (form)
-  `(let (error-found)
-     (setq error-found (multiple-value-list (ignore-errors ,form)))
-     (if (and (= (length error-found) 2)
-	      (null (car error-found))
-	      (typep (second error-found) (find-class 'error))
-	      )
-	 (warn "~s failed" (quote ,form))
-       (apply #'values error-found))))
+;(defmacro carefully-evaluate (form)
+;  `(let (error-found)
+;     (setq error-found (multiple-value-list (ignore-errors ,form)))
+;     (if (and (= (length error-found) 2)
+;	      (null (car error-found))
+;	      (typep (second error-found) (find-class 'error))
+;	      )
+;	 (warn "~s failed" (quote ,form))
+;       (apply #'values error-found))))
 
-#+lispworks 
 (defun slot-names-of (obj)
+ #-sbcl
  (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
-  (clos::class-slots (class-of obj))))
-  
-#+sbcl
-(defun slot-names-of (obj)
-  (mapcar #'(lambda(x) (slot-value x 'SB-PCL::NAME))
-   (c2mop::class-slots (class-of obj))))
+        (clos::class-slots (class-of obj)))
+ #+sbcl
+ (mapcar #'sb-mop:slot-definition-name
+        (sb-mop:class-slots (class-of obj)))
+  )
+
+;(defun slot-names-of (obj)
+; (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
+;  (clos::class-slots (class-of obj))))
   
 ;(defun slot-names-of (obj)
 ;(mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
@@ -459,7 +467,7 @@
 ;;; PROPAGATION PROPERTIES: as for equalv, except that no propagation occurs
 ;;; if the equality assertion fails.
 
-(defmacro-compile-time make-equal (var value &optional (retval '(fail)))
+(screamer::defmacro-compile-time make-equal (var value &optional (retval '(fail)))
   `(if (possibly? (equalv ,var ,value))
        (progn
 	 (assert! (equalv ,var ,value))
@@ -472,7 +480,7 @@
        (values ,retval))))
 
 
-(defmacro-compile-time ifv (condition exp1 &optional (exp2 nil))
+(screamer::defmacro-compile-time ifv (condition exp1 &optional (exp2 nil))
   ;; If the condition is bound then there is no need to create additional
   ;; constraint variables
   `(let ((c ,condition))
@@ -659,11 +667,11 @@
 ;;; Some variables for constraining values in positions of lists
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro-compile-time firstv (el) `(carv ,el))
-(defmacro-compile-time secondv (el) `(nthv 1 ,el))
-(defmacro-compile-time thirdv (el) `(nthv 2 ,el))
-(defmacro-compile-time fourthv (el) `(nthv 3 ,el))
-(defmacro-compile-time restv (el) `(cdrv ,el))
+(screamer::defmacro-compile-time firstv (el) `(carv ,el))
+(screamer::defmacro-compile-time secondv (el) `(nthv 1 ,el))
+(screamer::defmacro-compile-time thirdv (el) `(nthv 2 ,el))
+(screamer::defmacro-compile-time fourthv (el) `(nthv 3 ,el))
+(screamer::defmacro-compile-time restv (el) `(cdrv ,el))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1170,18 +1178,13 @@
     ;(format t "Function name is ~a~%" fn-name)
     (setq cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
     ;(format t "Constraint function name is ~a~%" cfn-name)
-    (if (screamer::valid-function-name? fn-name)
-		(if (fboundp cfn-name)
-	         (symbol-function cfn-name)
-	        (function (lambda (&rest args)
-	                   (value-of (applyv (value-of f) args)))
-		))
-        (function (lambda (&rest args)
-                   (value-of (applyv (value-of f) args))))
+    (if (and (screamer::valid-function-name? fn-name) (fboundp cfn-name))
+		(symbol-function cfn-name)
+	    (function (lambda (&rest args)
+	               (value-of (applyv (value-of f) args))))		   
      )
    )
   )
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: funcallinv
@@ -1250,10 +1253,10 @@
 ;;; Some functions for constraining elements to be of a specific type
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro-compile-time listpv (el) `(typepv ,el 'list))
-(defmacro-compile-time conspv (el) `(typepv ,el 'cons))
-(defmacro-compile-time symbolpv (el) `(typepv ,el symbol))
-(defmacro-compile-time stringpv (el) `(typepv ,el 'string))
+(screamer::defmacro-compile-time listpv (el) `(typepv ,el 'list))
+(screamer::defmacro-compile-time conspv (el) `(typepv ,el 'cons))
+(screamer::defmacro-compile-time symbolpv (el) `(typepv ,el symbol))
+(screamer::defmacro-compile-time stringpv (el) `(typepv ,el 'string))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1333,10 +1336,10 @@
 ;;; Some functions & macros for generating variables of a specific type
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro-compile-time a-listv () '(a-typed-varv 'list))
-(defmacro-compile-time a-consv () '(a-typed-varv 'cons))
-(defmacro-compile-time a-symbolv () '(a-typed-varv 'symbol))
-(defmacro-compile-time a-stringv () '(a-typed-varv 'string))
+(screamer::defmacro-compile-time a-listv () '(a-typed-varv 'list))
+(screamer::defmacro-compile-time a-consv () '(a-typed-varv 'cons))
+(screamer::defmacro-compile-time a-symbolv () '(a-typed-varv 'symbol))
+(screamer::defmacro-compile-time a-stringv () '(a-typed-varv 'string))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: a-typed-varv
@@ -1619,7 +1622,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defmacro-compile-time at-mostv (n f &rest x)
+(screamer::defmacro-compile-time at-mostv (n f &rest x)
   `(at-mostv-internal ,n ,f ,@x))
 
  
@@ -1731,7 +1734,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defmacro-compile-time at-leastv (n f &rest x)
+(screamer::defmacro-compile-time at-leastv (n f &rest x)
   `(at-leastv-internal ,n ,f ,@x))
 
 
@@ -1854,7 +1857,7 @@
 ;;;  )
 
 
-(defmacro-compile-time exactlyv (n f &rest x)
+(screamer::defmacro-compile-time exactlyv (n f &rest x)
   `(exactlyv-internal ,n ,f ,@x))
 
 (defun exactlyv-internal (n f &rest x)
@@ -2257,7 +2260,31 @@
 ;;; This function returns a boolean variable constrained to indicate whether
 ;;; the lists x and y have the same members
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ ;; SET-EQUALV FIX (PHRAPOSO) - 11/12/2024
 
+(defun set-equalv (x y)
+  (let ((z (a-booleanv)))
+    (flet ((strcmp (x y)
+             (numberp (|STRING>| (format nil "~s" x) (format nil "~s" y)))))
+
+      ;; Noticer for x and y
+      (let ((noticer
+              #'(lambda()
+                  (when (and (bound? x) (bound? y))
+                    (let ((mx (members-ofv (apply-substitution x)))
+                          (my (members-ofv (apply-substitution y))))
+                      (when (and (bound? mx) (bound? my))
+                        (assert!
+                          (equalv z
+                            (equalv
+                              (sort (value-of mx) #'strcmp)
+                              (sort (value-of my) #'strcmp))))))))))
+        (attach-noticer! noticer x)
+        (attach-noticer! noticer y))
+      )
+  z))
+  
+#|
 (defun set-equalv (x y)
   (let ((z (a-booleanv))
          noticer)
@@ -2286,7 +2313,7 @@
     (attach-noticer! noticer y)
     )
   z))
-
+|#
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: bag-equalv
@@ -2388,6 +2415,17 @@
 ;;; NOTE: it is only wise to use this for small lists!!!
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun a-subset-of (x)
+  (if (null (value-of x))
+      nil
+    (let (
+	  (y (a-subset-of (cdr x)))
+	  )
+      (either (cons (car x) y) y)
+      )
+    )
+  )
+  
 (defun a-subset-ofv (x)
   (let (
 	(z (make-variable))
@@ -2406,21 +2444,6 @@
     
     z)
   )
-
-
-
-(defun a-subset-of (x)
-  (if (null (value-of x))
-      nil
-    (let (
-	  (y (a-subset-of (cdr x)))
-	  )
-      (either (cons (car x) y) y)
-      )
-    )
-  )
-
-
 
 (defun a-partition-of (x)
   (if (null x)
