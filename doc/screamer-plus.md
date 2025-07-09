@@ -540,12 +540,9 @@ x
 ```
 (1 2 3)
 
-;;; Now an example of the assertion failing... 
+;;; Now an example of the assertion failing... > (setq a (an-integer-betweenv 1 5))
 
-(setq a (an-integer-betweenv 1 5))
-
-\[10214 integer 1:5 enumerated-domain:(1 2 3 4 5)\] 
-
+[10214 integer 1:5 enumerated-domain:(1 2 3 4 5)]
 ```
 (make-equal a 9 nil)
 ```
@@ -691,7 +688,6 @@ _Constraint Handling in Common LISP_ _The Extension to SCREAMER_
 ```
 (assert! (integerpv (secondv z)))
 NIL
-```
 ```
 z
 ```
