@@ -687,6 +687,7 @@ _Constraint Handling in Common LISP_ _The Extension to SCREAMER_
 
 ```
 (assert! (integerpv (secondv z)))
+```
 NIL
 ```
 z
