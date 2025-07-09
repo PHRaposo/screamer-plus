@@ -386,6 +386,7 @@ NIL
 ```
 \[97\]
 
+```
 (make-equal z '(1 2) 'failed)
 ```
 Warning: (make-equal Z '(1 2)) failed
