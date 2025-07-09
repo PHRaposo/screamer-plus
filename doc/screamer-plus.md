@@ -816,10 +816,16 @@ the **cons** of _x_ and _y_ as soon as _y_ becomes bound<sup>7</sup>. If _z_ sho
 
 ```
 (make-equal z '(a b c))
+```
 (A B C)
+
 ;;; Check that the values of x and y have been derived
-> x
+
+```
+x
+```
 A
+
 ```
 y
 ```
@@ -833,11 +839,15 @@ y
 
 **Examples**
 
-;;; Create a variable to contain a list > (setq x (make-variable))
+;;; Create a variable to contain a list
+
+(setq x (make-variable))
 
 \[13\]
 
-;;; Constrain the variable z to be the car of x > (setq z (carv x))
+;;; Constrain the variable z to be the car of x
+
+(setq z (carv x))
 
 _16_
 
@@ -845,6 +855,7 @@ _Constraint Handling in Common LISP_ _The Extension to SCREAMER_
 
 ```
 (make-equal x '(fee fi fo fum))
+```
 (FEE FI FO FUM)
 ;;; Inspect the value of z
 > z
@@ -862,9 +873,12 @@ FEE
 
 ```
 (make-equal x (cons 'one 'two))
+```
 (ONE . TWO)
 ;;; Inspect the value of z
-> z
+```
+z
+```
 ONE
 
 See also the examples for **cdrv**.
@@ -877,17 +891,25 @@ See also the examples for **cdrv**.
 
 **Examples**
 
-;;; Create a constraint variable to contain a list > (setq x (make-variable))
-
+;;; Create a constraint variable to contain a list
+```
+(setq x (make-variable))
+```
 \[133\]
 
 ;;; Constrain z to be the tail of the list > (setq z (cdrv x))
 
 \[134\]
 
-;;; Create a binding for x > (make-equal x '(1 2 3 4)) (1 2 3 4)
+;;; Create a binding for x
 
-Inspect the value of z > z
+(make-equal x '(1 2 3 4)) 
+
+(1 2 3 4)
+
+Inspect the value of z
+
+z
 
 (2 3 4)
 
@@ -901,9 +923,11 @@ Inspect the value of z > z
 
 ```
 (make-equal head 'g)
-G
 ```
+G
+
 (make-equal tail '(h i))
+
 (H I)
 ```
 x
