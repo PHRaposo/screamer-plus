@@ -80,7 +80,13 @@
 ;;; 		       Included SCREAMER::VALID-FUNCTION-NAME test. (phraposo)
 ;;;
 ;;; 02/09/2024         Removed macro CAREFULLY (not working!)
+;;; 07/07/2025         Added experimental macro CONDV, a constraint-aware version of COND,
+;;;                    after IFV. (phraposo)
+;;; 07/07/2025         Fixed bug in CAREFULLY and CAREFULLY-EVALUATE macros: now use handler-case
+;;;                    and screamer::defmacro-compile-time for compilation safety and portability. (phraposo)
 ;;;
+;;; 08/07/2025         Added CONDV-RESTRICTED macro, a restricted version of CONDV that ensures the result
+;;;                    is a member of the possible final values of the clauses. (phraposo)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -113,7 +119,7 @@
     :assert!-equalv :assert!-constraint :assert!-memberv-internal :variable? :attach-noticer!)
   (:export ;; screamer+
     :listpv :conspv :symbolpv :stringpv :typepv :a-listv :a-consv :a-symbolv
-    :a-stringv :a-typed-varv :impliesv :not-equalv :?? :ifv :make-equal
+    :a-stringv :a-typed-varv :impliesv :not-equalv :?? :ifv :condv :condv-restricted :make-equal
     :carv :cdrv :consv :firstv :secondv :thirdv :fourthv :restv :nthv :subseqv
     :lengthv :appendv :make-listv :all-differentv :set-equalv :subsetpv
     :intersectionv :unionv :bag-equalv :make-arrayv :arefv :make-instancev :classpv
@@ -259,7 +265,6 @@
             argument))
         z))))
 
-
 (defun slot-names-of (obj)
  #-sbcl
  (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
@@ -269,6 +274,9 @@
         (sb-mop:class-slots (class-of obj)))
   )
 
+;(defun slot-names-of (obj)
+; (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
+;  (clos::class-slots (class-of obj))))
 
 ;(defun slot-names-of (obj)
 ;(mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
@@ -300,9 +308,9 @@
 ;;; types
 
 (defstruct (variable+ 
-	    (:print-function print-variable+)
-	    (:include screamer::variable)
-	    (:constructor make-variable+))
+      (:print-function print-variable+)
+      (:include screamer::variable)
+      (:constructor make-variable+))
   ;; Stores the type of the variable if known
   nonnumber-type)
 
@@ -348,11 +356,11 @@
             (t "")))        
         (if (screamer::variable-real? x)
           (if (screamer::variable-lower-bound x)
-	    (if (screamer::variable-upper-bound x)
+      (if (screamer::variable-upper-bound x)
               (format stream " ~D:~D" (screamer::variable-lower-bound x)
                 (screamer::variable-upper-bound x))
               (format stream " ~D:" (screamer::variable-lower-bound x)))
-	    (if (screamer::variable-upper-bound x)
+      (if (screamer::variable-upper-bound x)
               (format stream " :~D" (screamer::variable-upper-bound x)))))        
         (if (and (not (equal (screamer::variable-enumerated-domain x) t))
               (not (screamer::variable-boolean? x)))
@@ -362,43 +370,22 @@
         (format stream "]"))     
       (t (format stream "~S" x)))))
 
+(screamer::defmacro-compile-time carefully (&body forms)
+ "This macro added by Simon White 23/9/98 to aid robustness The idea is that any LISP forms are supplied
+  and if they cause an error a warning is produced instead of diving straight into the LISP debugger."
+  `(handler-case
+       (progn ,@forms)
+     (error (e)
+       (warn "~s failed: ~a" ',forms e)
+       nil)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; This macro added by Simon White 23/9/98 to aid robustness
-;;; The idea is that any LISP forms are supplied and if they cause
-;;; an error a warning is produced instead of diving straight into the
-;;; LISP debugger.
-;;;
-;;; eg.
-;;; > (carefully (+ 1 2))
-;;; 3
-;;; > (carefully (skjfksdj))
-;;; Warning: (SKJFKSDJ ) failed
-;;; NIL
-;;; > (carefully (+ 'junk 1))
-;;; Warning: (+ 'JUNK 1 ) failed
-;;; NIL
-;;; >
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; FIXME: CAREFULLY MACRO AND CAREFULLY-EVALUATE NOT WORKING!
-;(defmacro carefully (&body forms)
-;  `(let (retval)     
-;     (setq retval (carefully-evaluate ,(car forms)))
-;     (if (> ,(length forms) 1)
-;       (carefully ,@(rest forms))
-;       retval)))
-
-
-;(defmacro carefully-evaluate (form)
-;  `(let (error-found)
-;     (setq error-found (multiple-value-list (ignore-errors ,form)))
-;     (if (and (= (length error-found) 2)
-;	      (null (car error-found))
-;	      (typep (second error-found) (find-class 'error))
-;	      )
-;	 (warn "~s failed" (quote ,form))
-;       (apply #'values error-found))))
+(screamer::defmacro-compile-time carefully-evaluate (form)
+  "Evaluates FORM, returning its value or NIL on error, emitting a warning."
+  `(handler-case
+       ,form
+     (error (e)
+       (warn "~s failed: ~a" ',form e)
+       nil)))
 
 (defun slot-names-of (obj)
  #-sbcl
@@ -435,27 +422,26 @@
        (listp (variable-enumerated-antidomain var))))
 
 
-;;; A simple version of eqv for atoms
-;;; PROPAGATION PROPERTIES: as for funcallv
 
-(defun eqv (x y) (funcallv #'eq x y))
+(defun eqv (x y)
+  "A simple version of eqv for atoms. PROPAGATION PROPERTIES: as for funcallv."
+  (funcallv #'eq x y))
 
-;;; This was not included in the standard SCREAMER distribution
-;;; The following generates the truth table for implication
-;;; > (setq p (a-booleanv))
-;;; [3558 Boolean]
-;;; > (setq q (a-booleanv))
-;;; [3559 Boolean]
-;;; > (setq r (a-booleanv))
-;;; [3560 Boolean]
-;;; > (assert! (equalv r (impliesv p q)))
-;;; NIL
-;;; > (all-values (solution (list p '=> q 'is r) (static-ordering #'linear-force)))
-;;; ((T => T IS T) (T => NIL IS NIL) (NIL => T IS T) (NIL => NIL IS T))
-;;;
-;;; PROPAGATION PROPERTIES: as for other logical functions
 
 (defun impliesv (p q)
+  "This was not included in the standard SCREAMER distribution.
+  The following generates the truth table for implication:
+  > (setq p (a-booleanv))
+  [3558 Boolean]
+  > (setq q (a-booleanv))
+  [3559 Boolean]
+  > (setq r (a-booleanv))
+  [3560 Boolean]
+  > (assert! (equalv r (impliesv p q)))
+  NIL]
+  > (all-values (solution (list p '=> q 'is r) (static-ordering #'linear-force)))
+  ((T => T IS T) (T => NIL IS NIL) (NIL => T IS T) (NIL => NIL IS T))
+  PROPAGATION PROPERTIES: as for other logical functions."
   (orv (notv p) q))
 
 
@@ -470,13 +456,13 @@
 (screamer::defmacro-compile-time make-equal (var value &optional (retval '(fail)))
   `(if (possibly? (equalv ,var ,value))
        (progn
-	 (assert! (equalv ,var ,value))
-	 (values ,var))
+   (assert! (equalv ,var ,value))
+   (values ,var))
      (progn
        (warn "(make-equal ~s ~s) failed~%  ~s = ~s; ~s = ~s"
-	     (quote ,var) (quote ,value)
-	     (quote ,var) ,var
-	     (quote ,value) ,value)
+       (quote ,var) (quote ,value)
+       (quote ,var) ,var
+       (quote ,value) ,value)
        (values ,retval))))
 
 
@@ -490,7 +476,7 @@
          ,exp1
          ,exp2)
        (let ((z (make-variable)))      
-	 (attach-noticer!
+   (attach-noticer!
            #'(lambda()
                ;; Change 31/8/99, SAW
                ;; Used to check that z is not bound too, but that seemed wrong
@@ -499,9 +485,66 @@
                    (assert!-equalv z ,exp1)
                    (assert!-equalv z ,exp2))))
            c)
-	 z))))
+   z))))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Macro: condv (experimental)
+;;; A constraint-aware version of COND for Screamer+.
+;;; Each clause is (test form). Returns the value of the first form whose test is true,
+;;; propagating constraints and supporting constraint variables as conditions.
+;;; If no test is true, returns NIL. EXPERIMENTAL: semantics and propagation may change.
+;;; (Added 07/07/2025, phraposo)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(screamer::defmacro-compile-time condv (&rest clauses)
+  "A constraint-aware version of COND. Each clause is (test form).
+   Returns the value of the first form whose test is true, propagating constraints.
+   If no test is true, returns NIL. EXPERIMENTAL."
+  (let ((g-clauses (gensym "CLAUSES")))
+    `(let ((,g-clauses (list ,@(mapcar (lambda (clause)
+                                         `(list ,@(mapcar #'identity clause)))
+                                       clauses))))
+       (labels ((condv-helper (clauses)
+                  (if (null clauses)
+                      nil
+                      (let* ((test (caar clauses))
+                             (form (cadar clauses))
+                             (c test))
+                        (assert! (booleanpv c))
+                        (if (bound? c)
+                            (if (known?-true c)
+                                form
+                                (condv-helper (cdr clauses)))
+                            (let ((z (make-variable)))
+                              (attach-noticer!
+                               #'(lambda ()
+                                   (when (bound? c)
+                                     (if (equal (value-of c) t)
+                                         (assert!-equalv z form)
+                                         (assert!-equalv z (condv-helper (cdr clauses))))))
+                               c)
+                              z))))))
+         (condv-helper ,g-clauses)))))
+
+(SCREAMER::defmacro-compile-time condv-restricted (&rest clauses)
+  "Macro similar to CONDV, but restricts the result to be a member of the possible final values of the clauses."
+  (let* ((result (gensym "RESULT"))
+         (g-clauses (mapcar (lambda (clause)
+                              (if (and (consp clause) (cdr clause))
+                                  (list (car clause) `(progn ,@(cdr clause)))
+                                clause))
+                            clauses))
+         (possible-values (remove-duplicates
+                           (mapcar (lambda (clause)
+                                     (let ((forms (cdr clause)))
+                                       (car (last forms))))
+                                   clauses)
+                           :test #'equal)))
+    `(let ((,result (condv ,@g-clauses)))
+       ;; Restringe o resultado a ser membro dos valores finais possíveis
+       (assert! (memberv ,result ',possible-values))
+       ,result)))
+       
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: consv
 ;;;
@@ -552,7 +595,7 @@
         x)     
       (if (bound? y)
         (assert! (equalv z (cons (value-of x) (value-of y))))
-	(screamer::attach-noticer!
+  (screamer::attach-noticer!
           #'(lambda()
               (when (and (not (bound? y)) (enumerated-domain-p y))
                 (if (bound? x)
@@ -701,59 +744,59 @@
   (if (and (bound? n) (bound? el))
       (nth (value-of n) (value-of el))
     (let (
-	  (z (make-variable))
-	  )
+    (z (make-variable))
+    )
       
       (screamer::attach-noticer!
        #'(lambda()
-	   (when (bound? n)
-	     ;; propagate possible values
-	     ;; the list is bound and the nth element has an enumerated domain
-	     (when (and (listp (value-of el))
-			(not (bound? (nth (value-of n) (value-of el))))
-			(enumerated-domain-p (nth (value-of n) (value-of el))))
-	       (assert!-memberv-internal z
+     (when (bound? n)
+       ;; propagate possible values
+       ;; the list is bound and the nth element has an enumerated domain
+       (when (and (listp (value-of el))
+      (not (bound? (nth (value-of n) (value-of el))))
+      (enumerated-domain-p (nth (value-of n) (value-of el))))
+         (assert!-memberv-internal z
                  (variable-enumerated-domain (nth (value-of n) (value-of el)))))
-	     ;; the list is unbound, but the nth elements in the enumerated 
-	     ;; domain are all bound
-	     (when (and (not (bound? el))
-			(enumerated-domain-p el)
-			(every #'(lambda(x) (and (listp x) (bound? (nth (value-of n) x)))) 
-			       (variable-enumerated-domain el))
-			)
-	       (assert!-memberv-internal z (mapcar #'(lambda(x) (nth (value-of n) x))
+       ;; the list is unbound, but the nth elements in the enumerated 
+       ;; domain are all bound
+       (when (and (not (bound? el))
+      (enumerated-domain-p el)
+      (every #'(lambda(x) (and (listp x) (bound? (nth (value-of n) x)))) 
+             (variable-enumerated-domain el))
+      )
+         (assert!-memberv-internal z (mapcar #'(lambda(x) (nth (value-of n) x))
                                              (variable-enumerated-domain el))))
-	     ;; propagate the actual value
-	     (when (listp (value-of el))
-	       (assert!-equalv z (nth (value-of n) (value-of el)))
-	       )
-	     )
-	   )
+       ;; propagate the actual value
+       (when (listp (value-of el))
+         (assert!-equalv z (nth (value-of n) (value-of el)))
+         )
+       )
+     )
        (cons n (value-of el)))
       (screamer::attach-noticer!
        #'(lambda()
-	   (when (and (bound? el)
-		      (bound? n)
-		      (or (bound? z) 
-			  (and (not (bound? z)) (enumerated-domain-p z))))
-	     (assert!-equalv (nth (value-of n) (value-of el)) z))
-	   ;; Added this part 18/3/99
-	   ;; It constrains the domain of indices for n when z is already bound
-	   (when (and (bound? el) (not (bound? n)) (bound? z))
-	     (do* ((index 0 (1+ index))
-		   (current (nth index el) (nth index el))
-		   (acc nil)
-		   )
-	       ((= index (length el))
-		(assert!-memberv-internal n acc))
-	       (if (bound? current)
-		   (when (equal (value-of (nth index el)) (value-of z))
-		     (setq acc (nconc acc (list index)))
-		     )
-		 (if (not (enumerated-domain-p current))
-		     (setq acc (nconc acc (list index)))
-		   (when (not (known?-false (memberv z (variable-enumerated-domain current))))
-		     (setq acc (nconc acc (list index)))))))))
+     (when (and (bound? el)
+          (bound? n)
+          (or (bound? z) 
+        (and (not (bound? z)) (enumerated-domain-p z))))
+       (assert!-equalv (nth (value-of n) (value-of el)) z))
+     ;; Added this part 18/3/99
+     ;; It constrains the domain of indices for n when z is already bound
+     (when (and (bound? el) (not (bound? n)) (bound? z))
+       (do* ((index 0 (1+ index))
+       (current (nth index el) (nth index el))
+       (acc nil)
+       )
+         ((= index (length el))
+    (assert!-memberv-internal n acc))
+         (if (bound? current)
+       (when (equal (value-of (nth index el)) (value-of z))
+         (setq acc (nconc acc (list index)))
+         )
+     (if (not (enumerated-domain-p current))
+         (setq acc (nconc acc (list index)))
+       (when (not (known?-false (memberv z (variable-enumerated-domain current))))
+         (setq acc (nconc acc (list index)))))))))
        z)      
       z)))
 
@@ -777,36 +820,36 @@
 (defun make-listv (n &key (initial-element '(make-variable)) &aux (acc nil))
   (if (bound? n)
       (progn
-	(dotimes (c (value-of n))
-	  ;; Changed append to nconc 8/7/00
-	  (setq acc (nconc acc (list (eval initial-element) )))
-	  )
-	acc
-	)
+  (dotimes (c (value-of n))
+    ;; Changed append to nconc 8/7/00
+    (setq acc (nconc acc (list (eval initial-element) )))
+    )
+  acc
+  )
     (let (
-	  (z (make-variable))
-	  (done nil)
-	  )
+    (z (make-variable))
+    (done nil)
+    )
 
       (screamer::attach-noticer!
        #'(lambda()
-	   (let ((acc nil))
-	     (when (and (bound? n) (not done))
-	       (setq done t)
-	       (dotimes (c (value-of n))
-		 ;; Changed append to nconc 8/7/00
-		 (setq acc (nconc acc (list (make-variable))))
-		 )
-	       (assert! (equalv z acc))
-	       )))
+     (let ((acc nil))
+       (when (and (bound? n) (not done))
+         (setq done t)
+         (dotimes (c (value-of n))
+     ;; Changed append to nconc 8/7/00
+     (setq acc (nconc acc (list (make-variable))))
+     )
+         (assert! (equalv z acc))
+         )))
        n)
       
       (screamer::attach-noticer!
        #'(lambda()
-	   (when (bound? z)
-	     (assert! (equalv n (length (value-of z))))
-	     )
-	   )
+     (when (bound? z)
+       (assert! (equalv n (length (value-of z))))
+       )
+     )
        z)
       z
       )
@@ -873,36 +916,36 @@
   (let (z acc vald)
 
     (if (ground? dimensions)
-	(progn
-	   (setq vald (apply-substitution dimensions))
-	   (setq acc (generate-dimension vald))
-	   (setq z (make-array vald
-			       :element-type element-type
-			       :initial-contents acc
-			       :adjustable t
-			       )
-		 ) ; possible return value
-	   )
-	(progn
-	  (setq z (make-variable))
-	  (attach-noticer!
-	   #'(lambda()
-	       (when (and (bound? dimensions) (every #'bound? (value-of dimensions)))
-		 (setq vald (apply-substitution dimensions))
-		 (setq acc (generate-dimension vald))
-		 (assert! (equalv z 
-				  (make-array vald
-					      :element-type element-type
-					      :initial-contents acc
-					      :adjustable t
-					      )
-				  )
-			  )
-		 )
-	       )
-	   dimensions)
-	  z) 
-	)
+  (progn
+     (setq vald (apply-substitution dimensions))
+     (setq acc (generate-dimension vald))
+     (setq z (make-array vald
+             :element-type element-type
+             :initial-contents acc
+             :adjustable t
+             )
+     ) ; possible return value
+     )
+  (progn
+    (setq z (make-variable))
+    (attach-noticer!
+     #'(lambda()
+         (when (and (bound? dimensions) (every #'bound? (value-of dimensions)))
+     (setq vald (apply-substitution dimensions))
+     (setq acc (generate-dimension vald))
+     (assert! (equalv z 
+          (make-array vald
+                :element-type element-type
+                :initial-contents acc
+                :adjustable t
+                )
+          )
+        )
+     )
+         )
+     dimensions)
+    z) 
+  )
     )
   )
 
@@ -937,134 +980,134 @@
   (if (and (bound? x) (bound? y) (every #'bound? r))
       (apply #'append (cons (append (value-of x) (value-of y)) r))
     (let (
-	  (z (make-variable))
-	  noticer
-	  )
+    (z (make-variable))
+    noticer
+    )
       
       (setq noticer
-	    #'(lambda()
-		(cond
-		 ;; x and y are both bound
-		 ((and (bound? x) (bound? y))
-		  (assert! (equalv z (append (value-of x) (value-of y))))
-		  )
-		 ;; x and z are both bound
-		 ((and (bound? x) (not (bound? y)) (bound? z))
-		  (assert! (equalv y (nthcdr (length (value-of x)) (value-of z))))
-		  )
-		 ;; y and z are both bound
-		 ((and (not (bound? x)) (bound? y) (bound? z))
-		  (assert! (equalv x (butlast (value-of z) (length (value-of y)))))
-		  )
-		 ;; Both x and y have enumerated domains
-		 ((and (not (bound? x)) (enumerated-domain-p x)
-		       (not (bound? y)) (enumerated-domain-p y)
-		       (< (* (domain-size x) (domain-size y)) *enumeration-limit*)
-		       )
-		  (assert! (memberv z (funcross-product #'append 
-							(variable-enumerated-domain x) 
-							(variable-enumerated-domain y))
-				    )
-			   )
-		  )
-		 ;; x has an enumerated domain and y is bound
-		 ((and (not (bound? x)) (enumerated-domain-p x) (bound? y))
-		  (assert! (memberv z (funcross-product #'append
-							(variable-enumerated-domain x)
-							(list (value-of y)))
-				    )
-			   )
-		  )
-		 ;; x is bound and y has an enumerated domain
-		 ((and (bound? x) (not (bound? y)) (enumerated-domain-p y))
-		  (assert! (memberv z (funcross-product #'append
-							(list (value-of x))
-							(variable-enumerated-domain y))
-				    )
-			   )
-		  )
-		 
-		 
-		 ) ; cond
-		) ; lambda
-	    )
+      #'(lambda()
+    (cond
+     ;; x and y are both bound
+     ((and (bound? x) (bound? y))
+      (assert! (equalv z (append (value-of x) (value-of y))))
+      )
+     ;; x and z are both bound
+     ((and (bound? x) (not (bound? y)) (bound? z))
+      (assert! (equalv y (nthcdr (length (value-of x)) (value-of z))))
+      )
+     ;; y and z are both bound
+     ((and (not (bound? x)) (bound? y) (bound? z))
+      (assert! (equalv x (butlast (value-of z) (length (value-of y)))))
+      )
+     ;; Both x and y have enumerated domains
+     ((and (not (bound? x)) (enumerated-domain-p x)
+           (not (bound? y)) (enumerated-domain-p y)
+           (< (* (domain-size x) (domain-size y)) *enumeration-limit*)
+           )
+      (assert! (memberv z (funcross-product #'append 
+              (variable-enumerated-domain x) 
+              (variable-enumerated-domain y))
+            )
+         )
+      )
+     ;; x has an enumerated domain and y is bound
+     ((and (not (bound? x)) (enumerated-domain-p x) (bound? y))
+      (assert! (memberv z (funcross-product #'append
+              (variable-enumerated-domain x)
+              (list (value-of y)))
+            )
+         )
+      )
+     ;; x is bound and y has an enumerated domain
+     ((and (bound? x) (not (bound? y)) (enumerated-domain-p y))
+      (assert! (memberv z (funcross-product #'append
+              (list (value-of x))
+              (variable-enumerated-domain y))
+            )
+         )
+      )
+     
+     
+     ) ; cond
+    ) ; lambda
+      )
       (screamer::attach-noticer! noticer x)
       (screamer::attach-noticer! noticer y)      
       (screamer::attach-noticer!
        #'(lambda()
-	   (cond
-	    ((and (bound? x) (not (bound? y)) (bound? z))
-	     (assert! (equalv y (nthcdr (length (value-of x)) (value-of z))))
-	     )
-	    ((and (not (bound? x)) (bound? y) (bound? z))
-	     (assert! (equalv x (butlast (value-of z) (length (value-of y)))))
-	     )
-	    ;; Both x and y have enumerated domains
-	    ((and (not (bound? x)) (enumerated-domain-p x)
-		  (not (bound? y)) (enumerated-domain-p y)
-		  (< (* (domain-size x) (domain-size y)) *enumeration-limit*)
-		  )
-	     (assert! (memberv z 
-			       (funcross-product #'append 
-						 (variable-enumerated-domain x) 
-						 (variable-enumerated-domain y)
-						 )
-			       )
-		      )
-	     )
-	    ;; x has an enumerated domain and y is bound
-	    ((and (not (bound? x)) (enumerated-domain-p x) (bound? y))
-	     (assert! (memberv z
-			       (funcross-product #'append
-						 (variable-enumerated-domain x)
-						 (list (value-of y))
-						 )
-			       )
-		      )
-	     )
-	    ;; x is bound and y has an enumerated domain
-	    ((and (bound? x)
-		  (not (bound? y)) (enumerated-domain-p y)
-		  )
-	     (assert! (memberv z
-			       (funcross-product #'append
-						 (list (value-of x))
-						 (variable-enumerated-domain y)
-						 )
-			       )
-		      )
-	     )
-	    ) ; cond
-	   
-	   (when (and (not (bound? x)) (not (bound? y)) (bound? z)
-		      (not r) ; there are only two arguments
-		      (< (length (value-of z)) (1- *enumeration-limit*))
-		      )
-	     (do* (
-		   (val (value-of z))
-		   (n (length val) (1- n))
-		   (fronts nil)
-		   (backs nil)
-		   )
-		 
-		 ((< n 0) 
-		  (assert! (memberv x fronts))
-		  (assert! (memberv y backs))
-		  )
-	       
-	       (push (subseq val 0 n) fronts)
-	       (push (subseq val n) backs)
-	       )
-	     )
-	   )
+     (cond
+      ((and (bound? x) (not (bound? y)) (bound? z))
+       (assert! (equalv y (nthcdr (length (value-of x)) (value-of z))))
+       )
+      ((and (not (bound? x)) (bound? y) (bound? z))
+       (assert! (equalv x (butlast (value-of z) (length (value-of y)))))
+       )
+      ;; Both x and y have enumerated domains
+      ((and (not (bound? x)) (enumerated-domain-p x)
+      (not (bound? y)) (enumerated-domain-p y)
+      (< (* (domain-size x) (domain-size y)) *enumeration-limit*)
+      )
+       (assert! (memberv z 
+             (funcross-product #'append 
+             (variable-enumerated-domain x) 
+             (variable-enumerated-domain y)
+             )
+             )
+          )
+       )
+      ;; x has an enumerated domain and y is bound
+      ((and (not (bound? x)) (enumerated-domain-p x) (bound? y))
+       (assert! (memberv z
+             (funcross-product #'append
+             (variable-enumerated-domain x)
+             (list (value-of y))
+             )
+             )
+          )
+       )
+      ;; x is bound and y has an enumerated domain
+      ((and (bound? x)
+      (not (bound? y)) (enumerated-domain-p y)
+      )
+       (assert! (memberv z
+             (funcross-product #'append
+             (list (value-of x))
+             (variable-enumerated-domain y)
+             )
+             )
+          )
+       )
+      ) ; cond
+     
+     (when (and (not (bound? x)) (not (bound? y)) (bound? z)
+          (not r) ; there are only two arguments
+          (< (length (value-of z)) (1- *enumeration-limit*))
+          )
+       (do* (
+       (val (value-of z))
+       (n (length val) (1- n))
+       (fronts nil)
+       (backs nil)
+       )
+     
+     ((< n 0) 
+      (assert! (memberv x fronts))
+      (assert! (memberv y backs))
+      )
+         
+         (push (subseq val 0 n) fronts)
+         (push (subseq val n) backs)
+         )
+       )
+     )
        z)
       
       (if r 
-	  ;; recursively apply the binary version so that any number of arguments
-	  ;; can be supplied
-	  (apply #'appendv (cons z r)) 
-	z ; must return the new variable
-	)
+    ;; recursively apply the binary version so that any number of arguments
+    ;; can be supplied
+    (apply #'appendv (cons z r)) 
+  z ; must return the new variable
+  )
       )
     )
   )
@@ -1093,22 +1136,22 @@
   (if (and (bound? f) (every #'bound? el))
       (apply #'mapcar (cons (value-of f) (mapcar #'value-of el)))
     (let (
-	  (z (make-variable))
-	  )
+    (z (make-variable))
+    )
       
       (dolist (d el)
-	;; Perhaps I should just assert the lengths to be equal, rather than
-	;; creating a new list of constraint variables just for this purpose?
+  ;; Perhaps I should just assert the lengths to be equal, rather than
+  ;; creating a new list of constraint variables just for this purpose?
         (when (and (bound? d) (not (bound? z)))
-	  (assert! (equalv z (make-listv (lengthv d))))
-	  )
+    (assert! (equalv z (make-listv (lengthv d))))
+    )
         (screamer::attach-noticer!
          #'(lambda()
              ;; check that it is a list 
              (when (and (every #'bound? el) (bound? f)) 
-	       (assert! (equalv z (apply #'mapcar 
-					 (cons (value-of f) (mapcar #'value-of el)))))
-	       )
+         (assert! (equalv z (apply #'mapcar 
+           (cons (value-of f) (mapcar #'value-of el)))))
+         )
              )
          d)
         )
@@ -1136,20 +1179,20 @@
   (if (and (bound? f) (every #'bound? el))
       (apply #'maplist (cons (value-of f) (mapcar #'value-of el)))
     (let (
-	  (z (make-variable))
-	  )
+    (z (make-variable))
+    )
       
       (dolist (d el)
         (when (and (bound? d) (not (bound? z)))
-	  (assert! (equalv z (make-listv (lengthv d))))
-	  )
+    (assert! (equalv z (make-listv (lengthv d))))
+    )
         (screamer::attach-noticer!
          #'(lambda()
              ;; check that it is a list 
              (when (and (every #'bound? el) (bound? f)) 
-	       (assert! (equalv z (apply #'maplist 
-					 (cons (value-of f) (mapcar #'value-of el)))))
-	       )
+         (assert! (equalv z (apply #'maplist 
+           (cons (value-of f) (mapcar #'value-of el)))))
+         )
              )
          d)
         )
@@ -1171,17 +1214,17 @@
 
 (defun constraint-fn (f)
   (let (
-	;; Recover the name of the function if possible
-	(fn-name (third (multiple-value-list (function-lambda-expression f))))
-	cfn-name
-	)
+  ;; Recover the name of the function if possible
+  (fn-name (third (multiple-value-list (function-lambda-expression f))))
+  cfn-name
+  )
     ;(format t "Function name is ~a~%" fn-name)
     (setq cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
     ;(format t "Constraint function name is ~a~%" cfn-name)
     (if (and (screamer::valid-function-name? fn-name) (fboundp cfn-name))
-		(symbol-function cfn-name)
-	    (function (lambda (&rest args)
-	               (value-of (applyv (value-of f) args))))		   
+    (symbol-function cfn-name)
+      (function (lambda (&rest args)
+                 (value-of (applyv (value-of f) args))))		   
      )
    )
   )
@@ -1210,8 +1253,8 @@
   (if (and (bound? f) (every #'ground? el))
       (apply (value-of f) (mapcar #'apply-substitution el))
     (let (
-	  (z (make-variable))
-	  )
+    (z (make-variable))
+    )
       
       (assert! (equalv z (applyv f el)))
       (when inverse (assert! (equalv el (listv (funcallv inverse z)))))
@@ -1219,12 +1262,12 @@
       (when (= (length el) 1)
       (screamer::attach-noticer!
        #'(lambda()
-	   (when (and (not (bound? (car el)))
-		      (enumerated-domain-p (car el))
-		      )
-	     (assert! (memberv z (mapcar f (variable-enumerated-domain (car el)))))
-	     )
-	   )
+     (when (and (not (bound? (car el)))
+          (enumerated-domain-p (car el))
+          )
+       (assert! (memberv z (mapcar f (variable-enumerated-domain (car el)))))
+       )
+     )
        el)
       )
       
@@ -1292,35 +1335,35 @@
     )
    (t
     (let ((z (make-variable))
-	  noticer
-	  )
+    noticer
+    )
       
       (assert! (equalv z (funcallv #'typep el type)))
       (setq noticer
-	#'(lambda()
-	    (when (and (known?-true z)
-		       (bound? type)
-		       (not (bound? el))
-		       )
-	      
-	      (when (variable? el)
-		(assert (subtypep (value-of type) t)) ; an error if not true
-		(setf (variable+-nonnumber-type el) (value-of type))
-		)
-	      
-	      (when (enumerated-domain-p el)
-		(assert! 
-		 (memberv el
-			  (remove-if-not
-			   #'(lambda(x) (or (typep x type) (variable? x)))
-			   (variable-enumerated-domain el)
-			   )
-			  )
-		 )
-		)
-	      )
-	    )
-	)
+  #'(lambda()
+      (when (and (known?-true z)
+           (bound? type)
+           (not (bound? el))
+           )
+        
+        (when (variable? el)
+    (assert (subtypep (value-of type) t)) ; an error if not true
+    (setf (variable+-nonnumber-type el) (value-of type))
+    )
+        
+        (when (enumerated-domain-p el)
+    (assert! 
+     (memberv el
+        (remove-if-not
+         #'(lambda(x) (or (typep x type) (variable? x)))
+         (variable-enumerated-domain el)
+         )
+        )
+     )
+    )
+        )
+      )
+  )
       (screamer::attach-noticer! noticer el)
       (screamer::attach-noticer! noticer z)
       (screamer::attach-noticer! noticer type)
@@ -1353,8 +1396,8 @@
 
 (defun a-typed-varv (type)
   (let (
-	(z (make-variable))
-	)
+  (z (make-variable))
+  )
 
     (assert! (typepv z type))
     z
@@ -1383,39 +1426,39 @@
 (defun formatv (&rest args)
   (if (every #'ground? args)
       (apply #'format (mapcar #'(lambda(x)
-				  (if (stringp x)
-				      x
-				    (apply-substitution  x)
-				    ))
-			      args))
+          (if (stringp x)
+              x
+            (apply-substitution  x)
+            ))
+            args))
     (let (
-	  (z (make-variable))
-	  (daemon-active t) ; used for inter-noticer communication
-	  retval
-	  )
+    (z (make-variable))
+    (daemon-active t) ; used for inter-noticer communication
+    retval
+    )
       
       (dolist (a args)
-	(screamer::attach-noticer!
-	 #'(lambda()
-	     (when (and (every #'ground? args) 
-			(not (bound? z))
-			daemon-active
-			)
-	       (setq daemon-active nil)
-	       (setq retval (apply #'format args))
-	       (assert! (equalv z retval))
-	       )
-	     )
-	 a)
-	)
+  (screamer::attach-noticer!
+   #'(lambda()
+       (when (and (every #'ground? args) 
+      (not (bound? z))
+      daemon-active
+      )
+         (setq daemon-active nil)
+         (setq retval (apply #'format args))
+         (assert! (equalv z retval))
+         )
+       )
+   a)
+  )
 
 
       (screamer::attach-noticer!
        #'(lambda()
-	   (when (and (bound? z) (null (value-of z)))
-	     (setq daemon-active nil)
-	     )
-	   )
+     (when (and (bound? z) (null (value-of z)))
+       (setq daemon-active nil)
+       )
+     )
        z)
       
       z)
@@ -1442,31 +1485,31 @@
 
 (defun everyv (f v)
   (let (
-	(z (a-booleanv))
-	val
-	(v (value-of v))
-	)
+  (z (a-booleanv))
+  val
+  (v (value-of v))
+  )
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (bound? v)
-	   (setq val nil)
-	   (dolist (x (value-of v))
-	     (push (funcall f x) val)
-	     )
-	   (assert!-equalv z (apply #'andv val))
-	   )
-	 )
+   (when (bound? v)
+     (setq val nil)
+     (dolist (x (value-of v))
+       (push (funcall f x) val)
+       )
+     (assert!-equalv z (apply #'andv val))
+     )
+   )
      v)
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (and (known?-true z) (bound? v))
-	   (dolist (x (value-of v))
-	     (assert! (funcall f x))
-	     )
-	   )
-	 )
+   (when (and (known?-true z) (bound? v))
+     (dolist (x (value-of v))
+       (assert! (funcall f x))
+       )
+     )
+   )
      z)
     z)
   )
@@ -1484,30 +1527,30 @@
 
 (defun notanyv (f v)
   (let (
-	(z (a-booleanv))
-	val
-	)
+  (z (a-booleanv))
+  val
+  )
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (bound? v)
-	   (setq val nil)
-	   (dolist (x (value-of v))
-	     (push (notv (funcall f x)) val)
-	     )
-	   (assert! (equalv z (apply #'andv val)))
-	   )
-	 )
+   (when (bound? v)
+     (setq val nil)
+     (dolist (x (value-of v))
+       (push (notv (funcall f x)) val)
+       )
+     (assert! (equalv z (apply #'andv val)))
+     )
+   )
      v)
 
  (screamer::attach-noticer!
      #'(lambda()
-	 (when (and (known?-true z) (bound? v))
-	   (dolist (x (value-of v))
-	     (assert! (notv (funcall f x)))
-	     )
-	   )
-	 )
+   (when (and (known?-true z) (bound? v))
+     (dolist (x (value-of v))
+       (assert! (notv (funcall f x)))
+       )
+     )
+   )
      z)    
     z)
   )
@@ -1520,30 +1563,30 @@
 
 (defun somev (f v)
   (let (
-	(z (a-booleanv))
-	disjunction
-	)
+  (z (a-booleanv))
+  disjunction
+  )
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (bound? v)
-	   (setq disjunction nil)
-	   (dolist (x (value-of v))
-		   (push (funcall f x) disjunction)
-		   )
-	   (assert! (equalv z (apply #'orv disjunction))) ; changed 28/2/99
-	   )
-	 )
+   (when (bound? v)
+     (setq disjunction nil)
+     (dolist (x (value-of v))
+       (push (funcall f x) disjunction)
+       )
+     (assert! (equalv z (apply #'orv disjunction))) ; changed 28/2/99
+     )
+   )
      v)
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (and (known?-false z) (bound? v))
-	   (dolist (x (value-of v))
-	     (assert! (notv (funcall f x)))
-	     )
-	   )
-	 )
+   (when (and (known?-false z) (bound? v))
+     (dolist (x (value-of v))
+       (assert! (notv (funcall f x)))
+       )
+     )
+   )
      z)
 
     z)
@@ -1561,30 +1604,30 @@
 
 (defun noteveryv (f v)
   (let (
-	(z (a-booleanv))
-	conjunction
-	)
+  (z (a-booleanv))
+  conjunction
+  )
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (bound? v)
-	   (setq conjunction nil)
-	   (dolist (x (value-of v))
-		   (push (funcall f x) conjunction)
-		   )
-	   (assert! (equalv (notv z) (apply #'andv conjunction)))
-	   )
-	 )
+   (when (bound? v)
+     (setq conjunction nil)
+     (dolist (x (value-of v))
+       (push (funcall f x) conjunction)
+       )
+     (assert! (equalv (notv z) (apply #'andv conjunction)))
+     )
+   )
      v)
 
      (screamer::attach-noticer!
      #'(lambda()
-	 (when (and (known?-false z) (bound? v))
-	   (dolist (x (value-of v))
-	     (assert! (funcall f x))
-	     )
-	   )
-	 )
+   (when (and (known?-false z) (bound? v))
+     (dolist (x (value-of v))
+       (assert! (funcall f x))
+       )
+     )
+   )
      z)
     z)
   )
@@ -1603,13 +1646,13 @@
     
       (attach-noticer!
        #'(lambda()
-	   (when (known?-true b) 
+     (when (known?-true b) 
              (assert!-equalv z 1)
              )
-	   (when (known?-false b)
+     (when (known?-false b)
              (assert!-equalv z 0)
              )
-	   )
+     )
        b)
       z
       )
@@ -1629,97 +1672,97 @@
 (defun at-mostv-internal (n f &rest x)
   (declare (integer n))
    (let* (
-	  (z (a-booleanv))
-	  (countup 0)
-	  (noes 0)
-	  (shortest (apply #'min (mapcar #'length x)))
-	  (known-list (make-list shortest :initial-element nil))
-	  )
+    (z (a-booleanv))
+    (countup 0)
+    (noes 0)
+    (shortest (apply #'min (mapcar #'length x)))
+    (known-list (make-list shortest :initial-element nil))
+    )
      (declare (integer countup noes shortest))
       
      (do* (
- 	   (cdrs x (mapcar #'cdr cdrs))
- 	   (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 	   (c 0 (1+ c))
- 	   )
- 	 ((some #'null cdrs) t)
+     (cdrs x (mapcar #'cdr cdrs))
+     (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+     (c 0 (1+ c))
+     )
+   ((some #'null cdrs) t)
        
        (let (
-	     ;;(d (nth c x))
- 	     (cars cars)
- 	     (c c)
- 	     temp
- 	     )
- 	 (screamer::attach-noticer!
- 	  #'(lambda()
- 	      (when (every #'bound? cars)
- 		(setq temp (apply f cars))
- 		(when (bound? temp)
- 		  (when (null (nth c known-list))
- 		    (local (setf (nth c known-list) t))
- 		    )
- 		  (if (equal (value-of temp) t)
- 		      (progn
- 			(local (setq countup (1+ countup)))
- 			(when (> countup n)
- 			  (assert! (notv z))
- 			  )
- 			)
- 		    ;; temp must be nil
- 		    (local (setq noes (1+ noes)))
- 		    )
- 		  )
+       ;;(d (nth c x))
+       (cars cars)
+       (c c)
+       temp
+       )
+   (screamer::attach-noticer!
+    #'(lambda()
+        (when (every #'bound? cars)
+    (setq temp (apply f cars))
+    (when (bound? temp)
+      (when (null (nth c known-list))
+        (local (setf (nth c known-list) t))
+        )
+      (if (equal (value-of temp) t)
+          (progn
+      (local (setq countup (1+ countup)))
+      (when (> countup n)
+        (assert! (notv z))
+        )
+      )
+        ;; temp must be nil
+        (local (setq noes (1+ noes)))
+        )
+      )
 
- 		(when (and (<= (- shortest noes) n)
- 			   (not (known?-true z))
- 			   )
- 		  (assert! z)
- 		  )
+    (when (and (<= (- shortest noes) n)
+         (not (known?-true z))
+         )
+      (assert! z)
+      )
 
- 		;; Short cut
- 		(when (and (= countup n)
- 			   (known?-true z)
- 			   )
- 		  (do* (
- 			(cdrs x (mapcar #'cdr cdrs))
- 			(cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 			(q 0 (1+ q))
- 			)
- 		      ((some #'null cdrs) t)
+    ;; Short cut
+    (when (and (= countup n)
+         (known?-true z)
+         )
+      (do* (
+      (cdrs x (mapcar #'cdr cdrs))
+      (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+      (q 0 (1+ q))
+      )
+          ((some #'null cdrs) t)
  
- 		    (when (null (nth q known-list))
-		      (assert! (notv (apply f cars)))
- 		      )
- 		    )
- 		  ) ; when
+        (when (null (nth q known-list))
+          (assert! (notv (apply f cars)))
+          )
+        )
+      ) ; when
 
- 		)
- 	      )
- 	  cars)
- 	 )
+    )
+        )
+    cars)
+   )
         )
 
 
       (screamer::attach-noticer!
        #'(lambda()
- 	  (when (bound? z)
- 	    (when (and (= countup n)
- 		       (known?-true z)
- 		       )
- 	      (do* (
- 		    (cdrs x (mapcar #'cdr cdrs))
- 		    (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 		    (q 0 (1+ q))
- 		    )
- 		  ((some #'null cdrs) t)
- 		
- 		(when (null (nth q known-list))
- 		  (assert! (notv (apply f cars)))
- 		  )
- 		)
- 	      ) ; when
- 	    ) ; when
- 	  )
+    (when (bound? z)
+      (when (and (= countup n)
+           (known?-true z)
+           )
+        (do* (
+        (cdrs x (mapcar #'cdr cdrs))
+        (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+        (q 0 (1+ q))
+        )
+      ((some #'null cdrs) t)
+    
+    (when (null (nth q known-list))
+      (assert! (notv (apply f cars)))
+      )
+    )
+        ) ; when
+      ) ; when
+    )
        z)
 
      z)
@@ -1742,92 +1785,92 @@
   (declare (integer n) (function f))
 ;   (local
     (let* (
- 	  (z (a-booleanv))
- 	  (countup 0)
- 	  (noes 0)
- 	  (shortest (apply #'min (mapcar #'length x)))
- 	  (known-list (make-list shortest :initial-element nil))
-	   )
+    (z (a-booleanv))
+    (countup 0)
+    (noes 0)
+    (shortest (apply #'min (mapcar #'length x)))
+    (known-list (make-list shortest :initial-element nil))
+     )
       (declare (integer countup) (integer noes) (integer shortest))
       
       (do* (
- 	   (cdrs x (mapcar #'cdr cdrs))
- 	   (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 	   (c 0 (1+ c))
- 	   )
- 	 ((some #'null cdrs) t)
+     (cdrs x (mapcar #'cdr cdrs))
+     (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+     (c 0 (1+ c))
+     )
+   ((some #'null cdrs) t)
         
         (let (
- 	     ;(d (nth c x))
- 	     (cars cars)
- 	     (c c)
- 	     temp
- 	     )
- 	 (screamer::attach-noticer!
- 	  #'(lambda()
- 	      (when (every #'bound? cars)
- 		(setq temp (apply f cars))
- 		(when (bound? temp)
- 		  (when (null (nth c known-list))
- 		    (local (setf (nth c known-list) t))
- 		    )
- 		    (if (equal (value-of temp) t)
- 			(progn
- 			  (local (incf countup))
- 			  (when (>= countup n)
- 			    (screamer::assert!-true z)
- 			    )
- 			  )
- 		      (local (incf noes))
- 		      )
- 		    )
- 		;; If the number of unknowns plus the yesses is < n
- 		;; then at-leastv is not satisfiable
- 		(when (and (< (- shortest noes) n)
- 			   (not (known?-false z))
- 			   )
- 		  (screamer::assert!-false z) ; (notv z))
- 		  )
- 		;; Short cut
- 		(when (and (= (- shortest noes) n)
- 			   (known?-true z)
- 			   )
- 		  (do* (
- 			(cdrs x (mapcar #'cdr cdrs))
- 			(cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 			(q 0 (1+ q))
- 			)
- 		      ((some #'null cdrs) t)
- 		    
- 		    (when (null (nth q known-list))
- 		      (assert! (apply f cars))
- 		      )
- 		    )
- 		  ) ; when
- 		)
- 	      )
- 	  cars)
- 	 )
+       ;(d (nth c x))
+       (cars cars)
+       (c c)
+       temp
+       )
+   (screamer::attach-noticer!
+    #'(lambda()
+        (when (every #'bound? cars)
+    (setq temp (apply f cars))
+    (when (bound? temp)
+      (when (null (nth c known-list))
+        (local (setf (nth c known-list) t))
+        )
+        (if (equal (value-of temp) t)
+      (progn
+        (local (incf countup))
+        (when (>= countup n)
+          (screamer::assert!-true z)
+          )
+        )
+          (local (incf noes))
+          )
+        )
+    ;; If the number of unknowns plus the yesses is < n
+    ;; then at-leastv is not satisfiable
+    (when (and (< (- shortest noes) n)
+         (not (known?-false z))
+         )
+      (screamer::assert!-false z) ; (notv z))
+      )
+    ;; Short cut
+    (when (and (= (- shortest noes) n)
+         (known?-true z)
+         )
+      (do* (
+      (cdrs x (mapcar #'cdr cdrs))
+      (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+      (q 0 (1+ q))
+      )
+          ((some #'null cdrs) t)
+        
+        (when (null (nth q known-list))
+          (assert! (apply f cars))
+          )
+        )
+      ) ; when
+    )
+        )
+    cars)
+   )
         )
 
       (screamer::attach-noticer!
        #'(lambda()
- 	  (when (and (= (- shortest noes) n)
- 		     (known?-true z)
- 		     )
- 	    (do* (
- 		  (cdrs x (mapcar #'cdr cdrs))
- 		  (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 		  (q 0 (1+ q))
- 		  )
- 		((some #'null cdrs) t)
- 	      
- 	      (when (null (nth q known-list))
- 		(assert! (apply f cars))
- 		)
- 	      )
- 	    ) ; when
- 	  )
+    (when (and (= (- shortest noes) n)
+         (known?-true z)
+         )
+      (do* (
+      (cdrs x (mapcar #'cdr cdrs))
+      (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+      (q 0 (1+ q))
+      )
+    ((some #'null cdrs) t)
+        
+        (when (null (nth q known-list))
+    (assert! (apply f cars))
+    )
+        )
+      ) ; when
+    )
        z)
      
      z)
@@ -1863,140 +1906,140 @@
 (defun exactlyv-internal (n f &rest x)
   (declare (integer n))
     (let* (
- 	  (z (a-booleanv))
- 	  (countup 0)
- 	  (noes 0)
- 	  (shortest (apply #'min (mapcar #'length x)))
- 	  (known-list (make-list shortest :initial-element nil))
- 	  )
+    (z (a-booleanv))
+    (countup 0)
+    (noes 0)
+    (shortest (apply #'min (mapcar #'length x)))
+    (known-list (make-list shortest :initial-element nil))
+    )
       
       (do* (
- 	   (cdrs x (mapcar #'cdr cdrs))
- 	   (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 	   (c 0 (1+ c))
- 	   )
- 	 ((some #'null cdrs) t)
+     (cdrs x (mapcar #'cdr cdrs))
+     (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+     (c 0 (1+ c))
+     )
+   ((some #'null cdrs) t)
         
         (let (
- 	     ;(d (nth c x))
- 	     (cars cars)
- 	     (c c)
- 	     temp
- 	     )
- 	 (screamer::attach-noticer!
- 	  #'(lambda()
- 	      (when (every #'bound? cars)
- 		(setq temp (apply f cars))
- 		(when (bound? temp)
- 		  (when (null (nth c known-list))
- 		    (local (setf (nth c known-list) t))
- 		    )
- 		    (if (equal (value-of temp) t)
- 			(progn
- 			  (local (setq countup (1+ countup)))
- 			  (when (>= countup n)
- 			    (screamer::assert!-true z)
- 			    )
-			  ;; From at-mostv
-			  (when (> countup n)
-			    (screamer::assert!-false z) ;(notv z))
-			    )
- 			  )
- 		      (local (setq noes (1+ noes)))
- 		      )
- 		    )
- 		;; If the number of unknowns plus the yesses is < n
- 		;; then at-leastv is not satisfiable
- 		(when (and (< (- shortest noes) n)
- 			   (not (known?-false z))
- 			   )
- 		  (screamer::assert!-false z) ; (notv z))
- 		  )
-		;; From at-mostv
-		(when (and (<= (- shortest noes) n)
- 			   (not (known?-true z))
- 			   )
- 		  (screamer::assert!-true z)
- 		  )
- 		;; Short cut
- 		(when (and (= (- shortest noes) n)
- 			   (known?-true z)
- 			   )
- 		  (do* (
- 			(cdrs x (mapcar #'cdr cdrs))
- 			(cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 			(q 0 (1+ q))
- 			)
- 		      ((some #'null cdrs) t)
- 		    
- 		    (when (null (nth q known-list))
- 		      (assert! (apply f cars))
- 		      )
- 		    )
- 		  )			; when
-		;; From at-mostv
-		(when (and (>= countup n)
- 			   (known?-true z)
- 			   )
- 		  (do* (
- 			(cdrs x (mapcar #'cdr cdrs))
- 			(cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 			(q 0 (1+ q))
- 			)
- 		      ((some #'null cdrs) t)
+       ;(d (nth c x))
+       (cars cars)
+       (c c)
+       temp
+       )
+   (screamer::attach-noticer!
+    #'(lambda()
+        (when (every #'bound? cars)
+    (setq temp (apply f cars))
+    (when (bound? temp)
+      (when (null (nth c known-list))
+        (local (setf (nth c known-list) t))
+        )
+        (if (equal (value-of temp) t)
+      (progn
+        (local (setq countup (1+ countup)))
+        (when (>= countup n)
+          (screamer::assert!-true z)
+          )
+        ;; From at-mostv
+        (when (> countup n)
+          (screamer::assert!-false z) ;(notv z))
+          )
+        )
+          (local (setq noes (1+ noes)))
+          )
+        )
+    ;; If the number of unknowns plus the yesses is < n
+    ;; then at-leastv is not satisfiable
+    (when (and (< (- shortest noes) n)
+         (not (known?-false z))
+         )
+      (screamer::assert!-false z) ; (notv z))
+      )
+    ;; From at-mostv
+    (when (and (<= (- shortest noes) n)
+         (not (known?-true z))
+         )
+      (screamer::assert!-true z)
+      )
+    ;; Short cut
+    (when (and (= (- shortest noes) n)
+         (known?-true z)
+         )
+      (do* (
+      (cdrs x (mapcar #'cdr cdrs))
+      (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+      (q 0 (1+ q))
+      )
+          ((some #'null cdrs) t)
+        
+        (when (null (nth q known-list))
+          (assert! (apply f cars))
+          )
+        )
+      )			; when
+    ;; From at-mostv
+    (when (and (>= countup n)
+         (known?-true z)
+         )
+      (do* (
+      (cdrs x (mapcar #'cdr cdrs))
+      (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+      (q 0 (1+ q))
+      )
+          ((some #'null cdrs) t)
  
- 		    (when (null (nth q known-list))
- 		      (assert! (notv (apply f cars)))
- 		      )
- 		    )
- 		  ) ; when
- 		)
- 	      )
- 	  cars)
- 	 )
+        (when (null (nth q known-list))
+          (assert! (notv (apply f cars)))
+          )
+        )
+      ) ; when
+    )
+        )
+    cars)
+   )
         )
  
 #|
       (screamer::attach-noticer!
        #'(lambda()
- 	  (when (and (= (- shortest noes) n)
- 		     (known?-true z)
- 		     )
- 	    (do* (
- 		  (cdrs x (mapcar #'cdr cdrs))
- 		  (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 		  (q 0 (1+ q))
- 		  )
- 		((some #'null cdrs) t)
- 	      
- 	      (when (null (nth q known-list))
- 		(assert! (apply f cars))
- 		)
- 	      )
- 	    ) ; when
- 	  )
+    (when (and (= (- shortest noes) n)
+         (known?-true z)
+         )
+      (do* (
+      (cdrs x (mapcar #'cdr cdrs))
+      (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+      (q 0 (1+ q))
+      )
+    ((some #'null cdrs) t)
+        
+        (when (null (nth q known-list))
+    (assert! (apply f cars))
+    )
+        )
+      ) ; when
+    )
        z)
 |#
       (screamer::attach-noticer!
        #'(lambda()
- 	  (when (bound? z)
- 	    (when (and (= countup n)
- 		       (known?-true z)
- 		       )
- 	      (do* (
- 		    (cdrs x (mapcar #'cdr cdrs))
- 		    (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
- 		    (q 0 (1+ q))
- 		    )
- 		  ((some #'null cdrs) t)
- 		
- 		(when (null (nth q known-list))
- 		  (assert! (notv (apply f cars)))
- 		  )
- 		)
- 	      ) ; when
- 	    ) ; when
- 	  )
+    (when (bound? z)
+      (when (and (= countup n)
+           (known?-true z)
+           )
+        (do* (
+        (cdrs x (mapcar #'cdr cdrs))
+        (cars (mapcar #'car cdrs) (mapcar #'car cdrs))
+        (q 0 (1+ q))
+        )
+      ((some #'null cdrs) t)
+    
+    (when (null (nth q known-list))
+      (assert! (notv (apply f cars)))
+      )
+    )
+        ) ; when
+      ) ; when
+    )
        z)
 
      z)
@@ -2018,38 +2061,38 @@
         )
 
       (if q
-	  (assert! (equalv z (funcallv #'subseq x n q)))
-	(assert! (equalv z (funcallv #'subseq x n)))
-	)
+    (assert! (equalv z (funcallv #'subseq x n q)))
+  (assert! (equalv z (funcallv #'subseq x n)))
+  )
       (setq noticer
-	    #'(lambda ()
-		(when (and (bound? x) (bound? n) (bound? q) 
-			   (not (bound? z)) (not done))
-		  (if (not (null q))
-		      (assert! (equalv z (subseq (value-of x) (value-of n) (value-of q))))
-		    (assert! (equalv z (subseq (value-of x) (value-of n))))
-		    )
-		  (setq done t)
-		  )
-		)
-	    )
+      #'(lambda ()
+    (when (and (bound? x) (bound? n) (bound? q) 
+         (not (bound? z)) (not done))
+      (if (not (null q))
+          (assert! (equalv z (subseq (value-of x) (value-of n) (value-of q))))
+        (assert! (equalv z (subseq (value-of x) (value-of n))))
+        )
+      (setq done t)
+      )
+    )
+      )
       (attach-noticer!
        #'(lambda()  
-	   (when (and (bound? z) 
-		      (listp (value-of z)) ; if z is a list, then so is x 
-		      (bound? x) (bound? n) (bound? q) (not done))
-	     (do (
-		  (zn 0 (1+ zn))
-		  (s (value-of n) (1+ s))
-		  (c (length (value-of z)) (1- c))
-		  )
-		 
-		 ((= c 0) t)
-	       (assert! (equalv (nth zn (value-of z)) (nth s (value-of x)))) 
-	       )
-	     (setq done t)
-	     )
-	   )
+     (when (and (bound? z) 
+          (listp (value-of z)) ; if z is a list, then so is x 
+          (bound? x) (bound? n) (bound? q) (not done))
+       (do (
+      (zn 0 (1+ zn))
+      (s (value-of n) (1+ s))
+      (c (length (value-of z)) (1- c))
+      )
+     
+     ((= c 0) t)
+         (assert! (equalv (nth zn (value-of z)) (nth s (value-of x)))) 
+         )
+       (setq done t)
+       )
+     )
        z)
       
       (attach-noticer! noticer x)
@@ -2068,30 +2111,30 @@
 
 (defun lengthv (el &optional (is-list t))
   (let (
-	(z (an-integer-abovev 0))
-	)
+  (z (an-integer-abovev 0))
+  )
 
     (assert!-equalv z (funcallv #'length el))
     (screamer::attach-noticer!
      ;; Propagate possible values
      #'(lambda()
-	 (when (and (not (bound? el)) (enumerated-domain-p el))
-	   (assert!-memberv-internal z (mapcar #'length (variable-enumerated-domain el)))
-	   )
-	 )
+   (when (and (not (bound? el)) (enumerated-domain-p el))
+     (assert!-memberv-internal z (mapcar #'length (variable-enumerated-domain el)))
+     )
+   )
      el)
 
 ;;; This function could also propagate from an unbound domain of z to el
     (when is-list
       (screamer::attach-noticer!
        #'(lambda()
-	   ;; The (not (enumerated-domain-p el)) condition seems to be necessary
-	   ;; because of a problem in SCREAMER which disallows, say,
-	   ;; (head one) | (head two) to be unified with the variable ([1] [2])
-	   (when (and (bound? z) (not (bound? el)) (not (enumerated-domain-p el)))
-	     (assert!-equalv el (make-listv (value-of z)))
-	     )
-	   )
+     ;; The (not (enumerated-domain-p el)) condition seems to be necessary
+     ;; because of a problem in SCREAMER which disallows, say,
+     ;; (head one) | (head two) to be unified with the variable ([1] [2])
+     (when (and (bound? z) (not (bound? el)) (not (enumerated-domain-p el)))
+       (assert!-equalv el (make-listv (value-of z)))
+       )
+     )
        z)
       )
     
@@ -2104,9 +2147,9 @@
       t
     ;;    (andv (notv (equalv x (car xs)))
     (andv (notv (funcallv #'equal x (car xs)))
-	  (all-different2 x (cdr xs))
-	  (all-different2 (car xs) (cdr xs))
-	  )
+    (all-different2 x (cdr xs))
+    (all-different2 (car xs) (cdr xs))
+    )
     )
   )
 
@@ -2137,8 +2180,8 @@
 
 (defun a-set-ofv (test)
   (let (
-	(z (a-listv))
-	)
+  (z (a-listv))
+  )
 
     (assert! (everyv test z))
     z 
@@ -2154,29 +2197,29 @@
 
 (defun a-set-of-instancesv (cname)
   (let* (
-	 (z (make-variable))
-	 (n (lengthv z))
-	 (done nil)
-	 )
+   (z (make-variable))
+   (n (lengthv z))
+   (done nil)
+   )
 
     (screamer::attach-noticer!
      #'(lambda()
-	 (let ((acc nil))
-	   (when (and (bound? n) (not done))
-	     (setq done t)
-	     (dotimes (c (value-of n))
-	       (setq acc (append acc (list (make-instancev cname))))
-	       )
-	     (assert! (equalv z acc))
-	     )))
+   (let ((acc nil))
+     (when (and (bound? n) (not done))
+       (setq done t)
+       (dotimes (c (value-of n))
+         (setq acc (append acc (list (make-instancev cname))))
+         )
+       (assert! (equalv z acc))
+       )))
      n)
     
     (screamer::attach-noticer!
      #'(lambda()
-	 (when (bound? z)
-	   (assert! (equalv n (length (value-of z))))
-	   )
-	 )
+   (when (bound? z)
+     (assert! (equalv n (length (value-of z))))
+     )
+   )
      z)
     z
     )
@@ -2206,21 +2249,21 @@
 
     (attach-noticer!
      #'(lambda()
-	 (when (bound? x)
-	   (setq valx (value-of x))
-	   (assert! (equalv z (make-listv (length valx))))
-	   
-	   (dolist (d (value-of z)) 
-	     (assert! (memberv d valx))
-	     ) 
-	   (dolist (d valx)
-	     (let ((d d))
-	       (setq occurs (count-occurrences d valx))
-	       (assert! (at-leastv occurs (constraint-fn #'(lambda(y) (equal y d))) (value-of z)))
-	       )
-	     )
-	   )
-	 )
+   (when (bound? x)
+     (setq valx (value-of x))
+     (assert! (equalv z (make-listv (length valx))))
+     
+     (dolist (d (value-of z)) 
+       (assert! (memberv d valx))
+       ) 
+     (dolist (d valx)
+       (let ((d d))
+         (setq occurs (count-occurrences d valx))
+         (assert! (at-leastv occurs (constraint-fn #'(lambda(y) (equal y d))) (value-of z)))
+         )
+       )
+     )
+   )
      x)
     
     z)
@@ -2419,27 +2462,27 @@
   (if (null (value-of x))
       nil
     (let (
-	  (y (a-subset-of (cdr x)))
-	  )
+    (y (a-subset-of (cdr x)))
+    )
       (either (cons (car x) y) y)
       )
     )
   )
-  
+
 (defun a-subset-ofv (x)
   (let (
-	(z (make-variable))
-	valx
-	)
+  (z (make-variable))
+  valx
+  )
 
     (attach-noticer!
      #'(lambda()
-	 (when (and (bound? x) (every #'bound? x))
-	   (setq valx (apply-substitution x))
-	   (assert! (memberv z (all-values (solution (a-subset-of valx) (static-ordering #'linear-force)))))
-	   
-	   )
-	 )
+   (when (and (bound? x) (every #'bound? x))
+     (setq valx (apply-substitution x))
+     (assert! (memberv z (all-values (solution (a-subset-of valx) (static-ordering #'linear-force)))))
+     
+     )
+   )
      x)
     
     z)
@@ -2449,17 +2492,17 @@
   (if (null x)
       nil
     (let (
-	  (y (a-partition-of (cdr x)))
-	  )
+    (y (a-partition-of (cdr x)))
+    )
       (either (cons (list (car x)) y)
-	      (let (
-		    (z (a-member-of y))
-		    )
-		(cons (cons (car x) z)
-		      (remove z y :test #'equal :count 1)
-		      )
-		)
-	      )
+        (let (
+        (z (a-member-of y))
+        )
+    (cons (cons (car x) z)
+          (remove z y :test #'equal :count 1)
+          )
+    )
+        )
       )
     )
   )
@@ -2486,32 +2529,32 @@
 
 (defun intersectionv (x y)
   (let (
-	(z (make-variable))
-	noticer
-	)
+  (z (make-variable))
+  noticer
+  )
     
     (setq noticer
-	  #'(lambda()
-	      (when (and (ground? x) (ground? y))
-		(assert! (equalv z (intersection
-				    (apply-substitution x)
-				    (apply-substitution y)
-				    :test #'equal)
-				 ))
-		)
-	      )
-	  )
+    #'(lambda()
+        (when (and (ground? x) (ground? y))
+    (assert! (equalv z (intersection
+            (apply-substitution x)
+            (apply-substitution y)
+            :test #'equal)
+         ))
+    )
+        )
+    )
     (attach-noticer! noticer x)
     (attach-noticer! noticer y)
     (attach-noticer!
      #'(lambda()
-	 (when (and (ground? z)
-		    (not (and (ground? x) (ground? y)))
-		    )
-	   (assert! (everyv #'(lambda(m) (memberv m x)) z))
-	   (assert! (everyv #'(lambda(m) (memberv m y)) z))
-	   )
-	 )
+   (when (and (ground? z)
+        (not (and (ground? x) (ground? y)))
+        )
+     (assert! (everyv #'(lambda(m) (memberv m x)) z))
+     (assert! (everyv #'(lambda(m) (memberv m y)) z))
+     )
+   )
      z)
     z
     )
@@ -2523,35 +2566,35 @@
 ;;; This function returns a variable constrained to the union of the two
 ;;; sets x and y
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-			   
+         
 (defun unionv (x y)
   (let (
-	(z (make-variable))
-	noticer
-	)
+  (z (make-variable))
+  noticer
+  )
     
     (setq noticer
-	  #'(lambda()
-	      (when (and (ground? x) (ground? y))
-		(assert! (equalv z (union
-				    (apply-substitution x)
-				    (apply-substitution y)
-				    :test #'equal)
-				 ))
-		)
-	      )
-	  )
+    #'(lambda()
+        (when (and (ground? x) (ground? y))
+    (assert! (equalv z (union
+            (apply-substitution x)
+            (apply-substitution y)
+            :test #'equal)
+         ))
+    )
+        )
+    )
     (attach-noticer! noticer x)
     (attach-noticer! noticer y)
     (attach-noticer!
      #'(lambda()
-	 (when (and (ground? z)
-		    (not (and (ground? x) (ground? y)))
-		    )
-	   (assert! (everyv #'(lambda(m) (memberv m z)) x))
-	   (assert! (everyv #'(lambda(m) (memberv m z)) y))
-	   )
-	 )
+   (when (and (ground? z)
+        (not (and (ground? x) (ground? y)))
+        )
+     (assert! (everyv #'(lambda(m) (memberv m z)) x))
+     (assert! (everyv #'(lambda(m) (memberv m z)) y))
+     )
+   )
      z)
     z
     )
@@ -2579,32 +2622,32 @@
       (apply #'make-instance (mapcar #'value-of args))
     (let ((z (make-variable)))
       (if (bound? (car args))
-	  (assert! (equalv z (apply #'make-instance (mapcar #'value-of args))))
-	(progn
-	  (screamer::attach-noticer!  
-	   #'(lambda() 
-	       (when (and (bound? (car args)) (not (bound? z)))
-		 (assert! (equalv z 
-				  (apply #'make-instance (mapcar #'value-of args))))
-		 )
-	       )
-	   (car args))
-	  (screamer::attach-noticer!
-	   #'(lambda()
-	       (when (and (bound? z) (not (bound? (car args))))
-		 (let (
-		       (object-type (class-name (class-of (value-of z))))
-		       temp
-		       )
-		   (assert! (equalv (car args) object-type))
-		   (setq temp (apply #'make-instance (mapcar #'value-of args)))
-		   (reconcile-objects temp (value-of z))
-		   )
-		 )
-	       )
-	   z)
-	  )
-	)
+    (assert! (equalv z (apply #'make-instance (mapcar #'value-of args))))
+  (progn
+    (screamer::attach-noticer!  
+     #'(lambda() 
+         (when (and (bound? (car args)) (not (bound? z)))
+     (assert! (equalv z 
+          (apply #'make-instance (mapcar #'value-of args))))
+     )
+         )
+     (car args))
+    (screamer::attach-noticer!
+     #'(lambda()
+         (when (and (bound? z) (not (bound? (car args))))
+     (let (
+           (object-type (class-name (class-of (value-of z))))
+           temp
+           )
+       (assert! (equalv (car args) object-type))
+       (setq temp (apply #'make-instance (mapcar #'value-of args)))
+       (reconcile-objects temp (value-of z))
+       )
+     )
+         )
+     z)
+    )
+  )
       z)
     )
   )
@@ -2813,17 +2856,17 @@
 
 (defun reconcile-objects (objvar1 objvar2)
   (let (
-	(obj1-slots (a-listv))
-	(obj2-slots (a-listv))
-	(obj1 objvar1)
-	(obj2 objvar2)
-	)
+  (obj1-slots (a-listv))
+  (obj2-slots (a-listv))
+  (obj1 objvar1)
+  (obj2 objvar2)
+  )
     (if (variable? objvar1)
-	(setq obj1 (value-of objvar1))
+  (setq obj1 (value-of objvar1))
       (setq obj1 objvar1)
       )
     (if (variable? objvar2)
-	(setq obj2 (value-of objvar2))
+  (setq obj2 (value-of objvar2))
       (setq obj2 objvar2)
       )
     
@@ -2836,11 +2879,11 @@
     ;; SCREAMER variables to fill the slots
     (dolist (s (value-of obj1-slots))
       (when (not (slot-boundp obj1 s))
-	(setf (slot-value obj1 s) (make-variable))
-	)
+  (setf (slot-value obj1 s) (make-variable))
+  )
       (when (not (slot-boundp obj2 s))
-	(setf (slot-value obj2 s) (make-variable))
-	)
+  (setf (slot-value obj2 s) (make-variable))
+  )
       (assert! (slot-values-equalv (slot-valuev obj1 s) (slot-valuev obj2 s)))
       )
 
@@ -2849,17 +2892,17 @@
     ;;; is replaced by its bound value.
     (dolist (s (value-of obj1-slots))
       (when (and (slot-boundp obj1 s)
-		 (variable? (slot-value obj1 s))
-		 (bound? (slot-value obj1 s))
-		 )
-	(setf (slot-value obj1 s) (value-of (slot-value obj1 s)))
-	)
+     (variable? (slot-value obj1 s))
+     (bound? (slot-value obj1 s))
+     )
+  (setf (slot-value obj1 s) (value-of (slot-value obj1 s)))
+  )
       (when (and (slot-boundp obj2 s)
-		 (variable? (slot-value obj2 s))
-		 (bound? (slot-value obj2 s))
-		 )
-	(setf (slot-value obj2 s) (value-of (slot-value obj2 s)))
-	)
+     (variable? (slot-value obj2 s))
+     (bound? (slot-value obj2 s))
+     )
+  (setf (slot-value obj2 s) (value-of (slot-value obj2 s)))
+  )
       )
     t
     )
@@ -2869,11 +2912,11 @@
 
 (defun slot-values-equalv (val1 val2)
   (let ((z (a-booleanv))
-	ok)
+  ok)
     (setq ok	  (catch 'fail  (assert! (equalv z (equalv val1 val2)))
-	    t
-	    )
-	  )
+      t
+      )
+    )
      (when (not ok)
        (setq z (a-booleanv))
        (reconcile val1 val2)
@@ -2911,7 +2954,7 @@
       ;; This noticer added 27.10.98
       ;; It ensures that when z is further restricted, the domain of objvar is
       ;; again tested for consistency with the new domain of z
-	  
+    
       ;(screamer::attach-noticer!
       ;  #'(lambda()
       ;      (when (and (bound? objvar)
@@ -2922,13 +2965,13 @@
       ;      (when (and (not (bound? z))
       ;              (not (bound? objvar))
       ;              (enumerated-domain-p z))
-	  ;   	     (assert!-memberv-internal objvar
-	  ;   				       (remove-if-not #'(lambda(x) (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
-	  ;	   						      (variable-enumerated-domain objvar))		  
-	  ;	   			       )													   
-	  ;				))
+    ;   	     (assert!-memberv-internal objvar
+    ;   				       (remove-if-not #'(lambda(x) (member (slot-value x slotname) (variable-enumerated-domain z) :test #'equal))
+    ;	   						      (variable-enumerated-domain objvar))		  
+    ;	   			       )													   
+    ;				))
       ;  z) 
-	      
+        
       z)))
 
 ;; The idea of this bit is that if the slot-value is known, but
@@ -2948,18 +2991,18 @@
 
 (defun bound-slots-equal (obj1 obj2)
   (let (
-	(obj1-slots (slot-names-of obj1))
-	(obj2-slots (slot-names-of obj2))
-	)
+  (obj1-slots (slot-names-of obj1))
+  (obj2-slots (slot-names-of obj2))
+  )
     
     (when (equal obj1-slots obj2-slots)
       (every
        #'(lambda(s)
-	   (if (and (slot-boundp obj1 s) (slot-boundp obj2 s))
-	       (equal (slot-value obj1 s) (slot-value obj2 s))
-	     t
-	     )
-	   )
+     (if (and (slot-boundp obj1 s) (slot-boundp obj2 s))
+         (equal (slot-value obj1 s) (slot-value obj2 s))
+       t
+       )
+     )
        obj1-slots
        )
       )
@@ -2981,8 +3024,8 @@
       (not (equal (value-of x) (value-of y)))
     
     (let (
-	  (z (a-booleanv))
-	  )
+    (z (a-booleanv))
+    )
 
       ;; This is where I get the functionality of (notv (equalv x y))
       (assert! (eqv z (notv (equalv x y))))
@@ -2991,32 +3034,32 @@
 
       (attach-noticer!
        #'(lambda()
-	   (when (and (bound? x) (not (bound? y)))
-	     (assert!-equalv z (notv (memberv y (list (value-of x)))))
-	     (when (and full-propagation (known?-true z) (enumerated-domain-p y))
-	       (assert!-memberv-internal
-		y
-		(remove-if #'(lambda(e) (equal e (value-of x)))
-			   (variable-enumerated-domain y))
-		)
-	       )
-	     )
-	   )
+     (when (and (bound? x) (not (bound? y)))
+       (assert!-equalv z (notv (memberv y (list (value-of x)))))
+       (when (and full-propagation (known?-true z) (enumerated-domain-p y))
+         (assert!-memberv-internal
+    y
+    (remove-if #'(lambda(e) (equal e (value-of x)))
+         (variable-enumerated-domain y))
+    )
+         )
+       )
+     )
        x)
        
       (attach-noticer!
        #'(lambda()
-	   (when (and (bound? y) (not (bound? x)))
-	     (assert!-equalv z (notv (memberv x (list (value-of y)))))
-	     (when (and full-propagation (known?-true z) (enumerated-domain-p x))
-	       (assert!-memberv-internal
-		x
-		(remove-if #'(lambda(e) (equal e (value-of y)))
-			   (variable-enumerated-domain x))
-		)
-	       )
-	     )
-	   )
+     (when (and (bound? y) (not (bound? x)))
+       (assert!-equalv z (notv (memberv x (list (value-of y)))))
+       (when (and full-propagation (known?-true z) (enumerated-domain-p x))
+         (assert!-memberv-internal
+    x
+    (remove-if #'(lambda(e) (equal e (value-of y)))
+         (variable-enumerated-domain x))
+    )
+         )
+       )
+     )
        y)
 
       ;; I could also attach a noticer to z
@@ -3031,3 +3074,4 @@
 ;;; (Comment by Simon White on 28/5/1997 at 13:13
 ;;; Reset the variable to its default so that errors are signalled again
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    
