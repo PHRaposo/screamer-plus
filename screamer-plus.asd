@@ -19,13 +19,15 @@
 ;;;; IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 ;;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-(defsystem :screamer+
+(defsystem :screamer-plus
   :serial t
   :licence "MIT"
   :description "Screamer Plus: increasing the expressiveness of Screamer."
   :author "Simon White"
   :maintainer "Paulo Henrique Raposo"
   :version "0.1.1"
+  :depends-on (:screamer)
   :components
-  ((:file "screamer+")))
-
+  ((:file "package")
+   (:file "screamer-patch")
+   (:file "screamer-plus")))

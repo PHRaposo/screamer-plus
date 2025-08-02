@@ -107,186 +107,6 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(assert (find-package :SCREAMER))
-
-(defpackage :screamer+
-  (:nicknames :?)
-  (:use :common-lisp :screamer)
-  (:shadowing-import-from :screamer
-    :defun :multiple-value-bind :y-or-n-p)
-  (:import-from :screamer 
-    :known?-true :known?-false :variable-enumerated-domain :variable-enumerated-antidomain
-    :assert!-equalv :assert!-constraint :assert!-memberv-internal :variable? :attach-noticer!)
-  (:export ;; screamer+
-    :listpv :conspv :symbolpv :stringpv :typepv :a-listv :a-consv :a-symbolv
-    :a-stringv :a-typed-varv :impliesv :not-equalv :?? :ifv :condv :condv-restricted :make-equal
-    :carv :cdrv :consv :firstv :secondv :thirdv :fourthv :restv :nthv :subseqv
-    :lengthv :appendv :make-listv :all-differentv :set-equalv :subsetpv
-    :intersectionv :unionv :bag-equalv :make-arrayv :arefv :make-instancev :classpv
-    :slot-valuev :class-ofv :class-namev  :slot-exists-pv :reconcile
-    :funcallinv :mapcarv :maplistv :everyv :somev :noteveryv :notanyv
-    :at-leastv :at-mostv :exactlyv :constraint-fn :formatv :*enumeration-limit*
-    :carefully :slot-names-of :objectp :eqv :funcallgv :setq-domains)    
-  (:export ;; screamer
-    :either :local :global :for-effects :local-output :multiple-value-call-nondeterministic
-    :nondeterministic-function? :funcall-nondeterministic :apply-nondeterministic :unwind-trail
-    :a-boolean :an-integer :a-member-of :an-integer-above :an-integer-below :an-integer-between
-    :possibly? :necessarily? :known? :decide  :solution :all-values :one-value :best-value
-    :print-values :ith-value  :fail :when-failing :count-failures :boolean :booleanp :assert!
-    :make-variable :count-trues :count-truesv :numberpv :realpv :integerpv :booleanpv :memberv
-    :=v :<v :<=v :|>V| :|>=V| :/=v :+v :-v :*v :/v :minv :maxv :a-booleanv :an-integerv
-    :an-integer-abovev :an-integer-belowv :an-integer-betweenv :a-realv :a-real-abovev
-    :a-real-belowv :a-real-betweenv :a-numberv :a-member-ofv :notv :andv :orv :funcallv :applyv
-    :equalv :bound? :ground? :value-of :apply-substitution :template :domain-size :range-size
-    :reorder :static-ordering :linear-force :divide-and-conquer-force :define-screamer-package
-    :purge :unwedge-screamer :*dynamic-extent?* :*minimum-shrink-ratio* :*strategy*
-    :*maximum-discretization-range* :*screamer-version*))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Prevents the production of warnings as a result of loading this patch
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-#+allegro
-(setq excl:*redefinition-warnings* 
-  (remove :operator excl:*redefinition-warnings*))
-
-(eval-when (:load-toplevel :execute :compile-toplevel)
-  (declaim (optimize (speed 1) (safety 3) (space 0) (debug 3))))
-
-(in-package :screamer)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; This patch enables the search for solutions which are objects
-;;; Redefine this function so that 'solution' labels constraint
-;;; variables found in objects as well as in conses
-;;; value-of has already been applied to x
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(screamer::defmacro-compile-time objectp (var)
-  "Determines whether a variable is a standard CLOS object or not"
-  `(typep ,var 'standard-object))
-
-
-(defun variables-in (x &aux slots)
-  (typecase x
-   (cons             (append (variables-in (value-of (car x))) (variables-in (cdr x))))
-   (standard-object  (setq slots (slot-names-of x))
-                     (append (variables-in (mapcar #'(lambda(y) (slot-value x y)) slots))))
-   (array            (get-array-variables x))
-   (variable         (list x))
-   (t nil)))
-
-
-(defun get-array-variables (array)
-  "This should collect the values of all cells of a multi-dimensional
-  array. Acc is an accumulator for collecting the values of the cells"
-  (do* ((dims (array-dimensions array))
-         (len (length dims))
-         (copydims (make-list len :initial-element 0))
-         (acc nil)
-         (brand-new t))      
-    ((and (every #'zerop copydims) (not brand-new)) acc)
-
-    ;; For some reason SCREAMER is order-sensitive, so I need to use
-    ;; append rather than cons
-    
-    (setq acc (nconc acc (list (apply #'aref (cons array copydims)))))
-    (setq copydims (milometer copydims dims))
-    (setq brand-new nil)))
-
-
-(defun milometer (m maxima)
-  "This function increments the least significant digit in m If the digit then
-  equals the base (maximum) given by the respective element in maxima, it is reset to
-  zero and the next significant digit is incremented:
-  ;;;  (milometer '(1 2) '(10 10))   => (1 3)
-  ;;;  (milometer '(2 3 4) '(5 5 5)) => (2 4 0)
-  ;;;  (milometer '(4 4 4) '(5 5 5)) => (0 0 0)"
-  (when (null m) (return-from milometer nil))
-  (when (not (= (length m) (length maxima)))
-    (error "2 lists supplied to milometer must be the same length"))
-  (let ((c m))
-    (setq c (nconc (butlast c) (list (1+ (car (last c))))))
-    (if (= (car (last c)) (car (last maxima)))
-      (append (milometer (butlast m) (butlast maxima)) '(0))
-      c)))
-
-;;; This function is also used by solution to return the values
-;;; found by the search. If objects were explored by the search
-;;; NEW instances of the same type are generated and returned.
-
-(defun apply-substitution (x &aux retobj)
-  (let ((val (value-of x)))
-    (typecase val
-      (cons (cons (apply-substitution (car val)) (apply-substitution (cdr val))))
-      (standard-object   (setq retobj (make-instance (class-name (class-of val))))
-        (copy-slots val retobj)
-        retobj)
-      (array       (setq retobj (make-array (array-dimensions val)))
-                   (copy-cells val retobj)
-                   retobj)
-      (t val))))
-
-;;; Used by apply-substitution
-
-(defun copy-slots (from to)
-  (declare (standard-object from to))
-  (dolist (s (slot-names-of from))
-     (setf (slot-value to s) (value-of (slot-value from s)))))      
-
-(defun copy-cells (from to)
-  (do* ((dims (array-dimensions from))
-         (len (length dims))
-         (copydims (make-list len :initial-element 0))
-         (brand-new t))      
-    ((and (every #'zerop copydims) (not brand-new)) to)
-    (setf (apply #'aref (cons to copydims)) (value-of (apply #'aref (cons from copydims))))
-    (setq copydims (milometer copydims dims))
-    (setq brand-new nil)))
-
-;;; This version of funcallv uses ground? to test the boundness of its arguments
-;;; instead of bound?
-
-(defun funcallgv (f &rest x)
-  (let ((f (value-of f)))
-    (if (variable? f)
-      (error "The current implementation does not allow the first argument~%~
-              of FUNCALLV to be an unbound variable"))
-    (unless (functionp f)
-      (error "The first argument to FUNCALLV must be a deterministic function"))
-    (if (every #'ground? x)
-      (apply f (mapcar #'value-of x))
-      (let ((z (make-variable)))
-        (assert!-constraint #'(lambda (&rest x) (equal (first x) (apply f (rest x)))) t (cons z x))
-        (dolist (argument x)
-          (attach-noticer! #'(lambda () (if (every #'ground? x)
-                                          (assert!-equalv z (apply f (mapcar #'value-of x)))))
-            argument))
-        z))))
-
-(defun slot-names-of (obj)
- #-sbcl
- (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
-        (clos::class-slots (class-of obj)))
- #+sbcl
- (mapcar #'sb-mop:slot-definition-name
-        (sb-mop:class-slots (class-of obj)))
-  )
-
-;(defun slot-names-of (obj)
-; (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
-;  (clos::class-slots (class-of obj))))
-
-;(defun slot-names-of (obj)
-;(mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
- ;(c2mop::class-slots (class-of obj))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; END OF PATCH
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 (in-package :screamer+)
 
 ;;; A variable holding the number of the SCREAMER+ version
@@ -341,19 +161,30 @@
         (format stream "[~S" (screamer::variable-name x))       
         (format stream "~A"
           (cond ((variable-type-known? x) (format nil " ~(~a~)" (variable-get-type x)))
-            ((screamer::variable-boolean? x) " Boolean")
-            ((screamer::variable-integer? x) " integer")
-            ((screamer::variable-real? x) (if (screamer::variable-noninteger? x)
-                                            " noninteger-real"
-                                            " real"))            
-            ((screamer::variable-number? x)
-              (cond ((screamer::variable-nonreal? x)    " nonreal-number")
-                ((screamer::variable-noninteger? x) " noninteger-number")
-                (t " number")))            
-            ((screamer::variable-nonnumber? x) " nonnumber")
-            ((screamer::variable-nonreal? x) " nonreal")
-            ((screamer::variable-noninteger? x) " noninteger")
-            (t "")))        
+          ((screamer::variable-boolean? x) " Boolean")
+          ((screamer::variable-real? x)
+          (cond
+            ((screamer::variable-rational? x)
+              (cond
+                ((screamer::variable-integer? x) " integer")
+                ((screamer::variable-noninteger-rational? x) " noninteger-rational")
+                (t " rational")))
+            (t
+              (cond
+                ((screamer::variable-noninteger? x)
+                 (if (screamer::variable-nonrational? x)
+                      " nonrational-real" " noninteger-real"))
+                (t " real")))))
+                     ((screamer::variable-number? x)
+                      (cond ((screamer::variable-nonreal? x) " nonreal-number")
+                            ((screamer::variable-noninteger? x) " noninteger-number")
+                            ((screamer::variable-nonrational? x) " nonrational-number")
+                            ((screamer::variable-rational? x) " rational-number")
+                            (t " number")))
+                     ((screamer::variable-nonnumber? x) " nonnumber")
+                     ((screamer::variable-nonreal? x) " nonreal")
+                     ((screamer::variable-noninteger? x) " noninteger")
+                     (t "")))       
         (if (screamer::variable-real? x)
           (if (screamer::variable-lower-bound x)
       (if (screamer::variable-upper-bound x)
@@ -361,7 +192,11 @@
                 (screamer::variable-upper-bound x))
               (format stream " ~D:" (screamer::variable-lower-bound x)))
       (if (screamer::variable-upper-bound x)
-              (format stream " :~D" (screamer::variable-upper-bound x)))))        
+              (format stream " :~D" (screamer::variable-upper-bound x)))))
+        (if (and (screamer::variable-rational? x)
+                 (screamer::variable-possibly-noninteger-rational? x)
+                 (integerp (screamer::variable-max-denom x)))
+         (format stream " max-denom:~D" (screamer::variable-max-denom x)))        
         (if (and (not (equal (screamer::variable-enumerated-domain x) t))
               (not (screamer::variable-boolean? x)))
           (format stream " enumerated-domain:~S" (screamer::variable-enumerated-domain x)))        
