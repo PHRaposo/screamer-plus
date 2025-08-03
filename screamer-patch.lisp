@@ -158,22 +158,10 @@
         z))))
 
 (defun slot-names-of (obj)
- #-sbcl
- (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
-        (clos::class-slots (class-of obj)))
- #+sbcl
- (mapcar #'sb-mop:slot-definition-name
-        (sb-mop:class-slots (class-of obj)))
-  )
-
-;(defun slot-names-of (obj)
-; (mapcar #'(lambda(x) (slot-value x 'CLOS::NAME))
-;  (clos::class-slots (class-of obj))))
-
-;(defun slot-names-of (obj)
-;(mapcar #'(lambda (x) (slot-value x 'c2mop::NAME))
- ;(c2mop::class-slots (class-of obj))))
+  (mapcar #'closer-mop:slot-definition-name
+          (closer-mop:class-slots (class-of obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
