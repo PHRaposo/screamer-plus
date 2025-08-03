@@ -26,7 +26,7 @@
   :author "Simon White"
   :maintainer "Paulo Henrique Raposo"
   :version "0.1.1"
-  :depends-on (:screamer)
+  :depends-on (:screamer :closer-mop)
   :components
   ((:file "package")
    (:file "screamer-patch")
