@@ -40,7 +40,7 @@
 (assert (find-package :SCREAMER))
 
 (defpackage :screamer+
-  (:nicknames :?)
+  (:nicknames :? :screamer-plus)
   (:use :common-lisp :screamer)
   (:shadowing-import-from :screamer
     :defun :multiple-value-bind :y-or-n-p)
@@ -71,3 +71,4 @@
     :reorder :static-ordering :linear-force :divide-and-conquer-force :define-screamer-package
     :purge :unwedge-screamer :*dynamic-extent?* :*minimum-shrink-ratio* :*strategy*
     :*maximum-discretization-range* :*screamer-version*))
+
