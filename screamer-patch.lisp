@@ -1,165 +1,141 @@
-;;;;; -*- mode: common-lisp;   common-lisp-style: modern;    coding: utf-8; -*-
-;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;              ===================================================
-;;;              ===                 SCREAMER+                   ===
-;;;              ===  increasing the expressiveness of SCREAMER  ===
-;;;              ===================================================
-;;;
-;;;                  Copyright 1998-2000 University of Aberdeen
-;;;                  
-;;; This source code may be used cost-free for non-commercial use. However,
-;;; I request that you provide me with a short description of how you are
-;;; using the software so that I can build up a profile of applications.
-;;; You are free to modify and extend the source code, but please report any 
-;;; bugs found (together with any fixes), so that the quality of the code can
-;;; be improved. 
-;;;
-;;; You may not distribute the code without prior consent from me.
-;;;
-;;; This software represents "work in progress" and is not (guaranteed to be) 
-;;; bug-free!
-;;;
-;;; And remember...
-;;;      'Sometimes a scream is better than a thesis'...
-;;;
-;;; Happy Screaming!
-;;;
-;;; Simon White, February 2000                          swhite@csd.abdn.ac.uk
-;;;
-;;; Department of Computing Science
-;;; King's College
-;;; University of Aberdeen
-;;; Aberdeen AB24 3UE
-;;; Scotland, UK.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Prevents the production of warnings as a result of loading this patch
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; -*- mode: common-lisp;   common-lisp-style: modern;    coding: utf-8; -*-
+;;;;
+;;;; Screamer-Plus: A modernized constraint logic programming library for Common Lisp
+;;;;
+;;;; Screamer-Plus is a complete rearchitecture of constraint propagation in Screamer,
+;;;; built upon a fundamental redesign of the core functions `funcallv` and `applyv`
+;;;; introduced in version 4.0.1 of Screamer.
+;;;;
+;;;; This new foundation enables automatic constraint propagation, eliminating the
+;;;; need for manual noticers and simplifying function/macro definitions.
+;;;; As a result, many of the macros and functions originally found in Screamer-Plus
+;;;; (by Simon White) — such as `CARV`, `CDRV`, `IFV`, and others — have been
+;;;; entirely rewritten or reimagined with cleaner semantics and greater efficiency.
+;;;;
+;;;; Some function names and general ideas are inspired by the original Screamer-Plus
+;;;; by Simon White, but all code in this package is original unless otherwise noted.”
+;;;;
+;;;; Contributions, feedback, and extensions are welcome.
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Copyright (c) 2025 Paulo Henrique Raposo
+;;;;
+;;;; Permission is hereby granted, free of charge, to any person obtaining a copy of
+;;;; this software and associated documentation files (the "Software"), to deal in
+;;;; the Software without restriction, including without limitation the rights to
+;;;; use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+;;;; the Software, and to permit persons to whom the Software is furnished to do so,
+;;;; subject to the following conditions:
+;;;;
+;;;; The above copyright and authorship notice and this permission notice shall be
+;;;; included in all copies or substantial portions of the Software.
+;;;;
+;;;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;;;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+;;;; FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+;;;; COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+;;;; IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+;;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 #+allegro
-(setq excl:*redefinition-warnings* 
-  (remove :operator excl:*redefinition-warnings*))
+(setq excl:*redefinition-warnings* (remove :operator excl:*redefinition-warnings*))
 
-(eval-when (:load-toplevel :execute :compile-toplevel)
-  (declaim (optimize (speed 1) (safety 3) (space 0) (debug 3))))
+#+sbcl
+(setq sb-ext:*redefinition-warnings* nil)
+
+#+lispworks
+(setf lw::*handle-warn-on-redefinition* :nil) 
+
+#+ccl
+(setq ccl:*warn-if-redefine* nil)
 
 (in-package :screamer)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; This patch enables the search for solutions which are objects
-;;; Redefine this function so that 'solution' labels constraint
-;;; variables found in objects as well as in conses
-;;; value-of has already been applied to x
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(screamer::defmacro-compile-time objectp (var)
+(defun objectp (var)
   "Determines whether a variable is a standard CLOS object or not"
-  `(typep ,var 'standard-object))
-
-
-(defun variables-in (x &aux slots)
-  (typecase x
-   (cons             (append (variables-in (value-of (car x))) (variables-in (cdr x))))
-   (standard-object  (setq slots (slot-names-of x))
-                     (append (variables-in (mapcar #'(lambda(y) (slot-value x y)) slots))))
-   (array            (get-array-variables x))
-   (variable         (list x))
-   (t nil)))
-
-
-(defun get-array-variables (array)
-  "This should collect the values of all cells of a multi-dimensional
-  array. Acc is an accumulator for collecting the values of the cells"
-  (do* ((dims (array-dimensions array))
-         (len (length dims))
-         (copydims (make-list len :initial-element 0))
-         (acc nil)
-         (brand-new t))      
-    ((and (every #'zerop copydims) (not brand-new)) acc)
-
-    ;; For some reason SCREAMER is order-sensitive, so I need to use
-    ;; append rather than cons
-    
-    (setq acc (nconc acc (list (apply #'aref (cons array copydims)))))
-    (setq copydims (milometer copydims dims))
-    (setq brand-new nil)))
-
-
-(defun milometer (m maxima)
-  "This function increments the least significant digit in m If the digit then
-  equals the base (maximum) given by the respective element in maxima, it is reset to
-  zero and the next significant digit is incremented:
-  ;;;  (milometer '(1 2) '(10 10))   => (1 3)
-  ;;;  (milometer '(2 3 4) '(5 5 5)) => (2 4 0)
-  ;;;  (milometer '(4 4 4) '(5 5 5)) => (0 0 0)"
-  (when (null m) (return-from milometer nil))
-  (when (not (= (length m) (length maxima)))
-    (error "2 lists supplied to milometer must be the same length"))
-  (let ((c m))
-    (setq c (nconc (butlast c) (list (1+ (car (last c))))))
-    (if (= (car (last c)) (car (last maxima)))
-      (append (milometer (butlast m) (butlast maxima)) '(0))
-      c)))
-
-;;; This function is also used by solution to return the values
-;;; found by the search. If objects were explored by the search
-;;; NEW instances of the same type are generated and returned.
-
-(defun apply-substitution (x &aux retobj)
-  (let ((val (value-of x)))
-    (typecase val
-      (cons (cons (apply-substitution (car val)) (apply-substitution (cdr val))))
-      (standard-object   (setq retobj (make-instance (class-name (class-of val))))
-        (copy-slots val retobj)
-        retobj)
-      (array       (setq retobj (make-array (array-dimensions val)))
-                   (copy-cells val retobj)
-                   retobj)
-      (t val))))
-
-;;; Used by apply-substitution
-
-(defun copy-slots (from to)
-  (declare (standard-object from to))
-  (dolist (s (slot-names-of from))
-     (setf (slot-value to s) (value-of (slot-value from s)))))      
-
-(defun copy-cells (from to)
-  (do* ((dims (array-dimensions from))
-         (len (length dims))
-         (copydims (make-list len :initial-element 0))
-         (brand-new t))      
-    ((and (every #'zerop copydims) (not brand-new)) to)
-    (setf (apply #'aref (cons to copydims)) (value-of (apply #'aref (cons from copydims))))
-    (setq copydims (milometer copydims dims))
-    (setq brand-new nil)))
-
-;;; This version of funcallv uses ground? to test the boundness of its arguments
-;;; instead of bound?
-
-(defun funcallgv (f &rest x)
-  (let ((f (value-of f)))
-    (if (variable? f)
-      (error "The current implementation does not allow the first argument~%~
-              of FUNCALLV to be an unbound variable"))
-    (unless (functionp f)
-      (error "The first argument to FUNCALLV must be a deterministic function"))
-    (if (every #'ground? x)
-      (apply f (mapcar #'value-of x))
-      (let ((z (make-variable)))
-        (assert!-constraint #'(lambda (&rest x) (equal (first x) (apply f (rest x)))) t (cons z x))
-        (dolist (argument x)
-          (attach-noticer! #'(lambda () (if (every #'ground? x)
-                                          (assert!-equalv z (apply f (mapcar #'value-of x)))))
-            argument))
-        z))))
+  (typep var 'standard-object))
 
 (defun slot-names-of (obj)
   (mapcar #'closer-mop:slot-definition-name
           (closer-mop:class-slots (class-of obj))))
+
+(defun copy-standard-object (obj)
+  "Shallow copy of a CLOS object (standard-object)."
+  (let* ((class (class-of obj))
+         (copy (make-instance class)))
+    (dolist (slot (slot-names-of obj))
+      (setf (slot-value copy slot) (slot-value obj slot)))
+    copy))
+
+ (defun variables-in (x)
+  (the list
+   (let ((x (value-of x)))
+       ;; Note: (value-of x) is required to dereference a variable 
+       ;; whose value has been unified (using EQUALV) with other 
+       ;; data types, such as cons cells, lists, and so on.
+       (typecase x
+         (cons (append (variables-in (car x))
+                       (variables-in (cdr x))))
+         (string nil)
+         ;; (simple-vector (apply #'append (map 'list #'variables-in x)))
+         (sequence (apply #'append (map 'list #'variables-in x)))
+         (array (flet ((mappend-arr (arr f)
+                         (let (coll)
+                           (dotimes (idx (array-total-size arr))
+                             (alexandria::appendf coll (funcall f (row-major-aref arr idx))))
+                           coll)))
+                  (mappend-arr x #'variables-in)))
+         (hash-table (let (coll)
+                       (maphash (lambda (k v)
+                                  (declare (ignore k))
+                                  (alexandria::appendf coll (variables-in v)))
+                                x)
+                       coll))
+         (standard-object (let (coll)
+                           (dolist (slot (slot-names-of x))
+                            (alexandria:appendf coll (variables-in (slot-value x slot))))
+                            coll))
+         (variable (list x))
+         (otherwise nil)))))
+
+(defun apply-substitution (x)
+  "If X is a SEQUENCE or HASH-TABLE, returns a freshly consed
+copy of the tree with all variables dereferenced.
+Otherwise returns the value of X."
+  (let ((x (value-of x)))
+    (etypecase x
+      (cons (if (null (cdr (last x)))
+                ;; If terminates with nil (ie normal list)
+                ;; use mapcar to not consume stack
+                (mapcar #'apply-substitution x)
+                ;; Otherwise recurse on the car and cdr
+                (cons (apply-substitution (car x))
+                      (apply-substitution (cdr x)))))
+      (string x)
+      (simple-vector (map 'vector #'apply-substitution x))
+      (sequence (let ((copy (copy-seq x)))
+                  (dotimes (idx (length x))
+                    (setf (elt copy idx)
+                          (apply-substitution (elt x idx))))
+                  copy))
+      (array (let ((arr (alexandria::copy-array x)))
+               (dotimes (idx (array-total-size arr))
+                 (setf (row-major-aref arr idx)
+                       (apply-substitution (row-major-aref arr idx))))
+               arr))
+      (hash-table
+       (let ((x (alexandria::copy-hash-table x)))
+         (maphash (lambda (k v) (setf (gethash k x) (apply-substitution v))) x)
+         x))
+       (standard-object (let ((copy (copy-standard-object x)))
+                              (dolist (slot (slot-names-of x))
+                                (setf (slot-value copy slot)
+                                      (apply-substitution (slot-value x slot))))
+                              copy))
+      (t x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
