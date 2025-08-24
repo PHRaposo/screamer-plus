@@ -158,8 +158,8 @@
   (orv (notv p) q))
 
 (screamer::defmacro-compile-time carefully (&body forms)
- "This macro added by Simon White 23/9/98 to aid robustness The idea is that any LISP forms are supplied
-  and if they cause an error a warning is produced instead of diving straight into the LISP debugger."
+ "Redesigned for original Screamer-Plus.
+  Evaluates FORMS, returning its value or NIL on error, emitting a warning."
   `(handler-case
        (progn ,@forms)
      (error (e)
@@ -175,6 +175,7 @@
        nil)))
 
 (screamer::defmacro-compile-time ifv (condition then &optional else)
+  "Redesigned for original Screamer-Plus."
   (let ((g-cond (gensym "COND"))
         (g-then (gensym "THEN"))
         (g-else (gensym "ELSE")))
@@ -206,9 +207,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun formatv (destination control-string &rest args)
+"Redesigned for original Screamer-Plus."
  (applyv #'format (apply #'list* destination control-string args)))
 
 (defun reifyv (x)
+"Redesigned for original Screamer-Plus."
  (cond ((known?-true x) 1)
        ((known?-false x) 0)
        (t (let* ((z (an-integer-betweenv 0 1)))
@@ -221,8 +224,10 @@
 ;; compatibility note
 ;; This section contains or original functions from original Screamer-Plus or
 ;; adaptations of them, keeped here for backward compatibility.
+;; Some of them are deprecated.
 
 (defmacro-compile-time make-equal (var value &optional (retval '(fail)))
+"Original for original Screamer-Plus."
   `(if (possibly? (equalv ,var ,value))
        (progn
    (assert! (equalv ,var ,value))
@@ -235,6 +240,7 @@
        (values ,retval))))
 
 (defun all-different2 (x xs)
+"Original for original Screamer-Plus."
   (if (null xs)
       t
       (andv (notv (funcallv #'equal x (car xs)))
@@ -242,30 +248,38 @@
             (all-different2 (car xs) (cdr xs)))))
 
 (defun all-differentv (x &rest xs)
+"Original for original Screamer-Plus."
   (all-different2 x xs))
 
 (defun constraint-fn (f)
+"Redesigned for original Screamer-Plus."
   (alexandria:curry (lambda (&rest args)
                       (value-of (applyv (value-of f) args)))))
 
 (defun members-ofv (x)
+"DEPRECATED. Use remove-duplicatesv instead."
  (remove-duplicatesv x))
 
 (defun not-equalv (x y &key (full-propagation nil))
+"Redesigned for original Screamer-Plus.
+DEPRECATED. Use (notv (equalv ...)) instead."
  (declare (ignore full-propagation))
  (let ((z (a-booleanv)))  
   (assert! (equalv z (funcallv #'(lambda (a b) (not (equal a b))) x y)))
   z))
 
 (defun funcallgv (f &rest x)
+"DEPRECATED. Use funcallv instead."
  (funcallv f x))
 
 (defun funcallinv (f inverse &rest el)
+"DEPRECATED. Use funcallv instead."
  (declare (ignore inverse))
   (let* ((z (applyv f el)))
     z))
 
 (defmacro-compile-time setq-domains (vars vals &aux (res nil))
+"Original for original Screamer-Plus."
  (dolist (var vars) (setq res (nconc (list var vals) res)))
  (cons 'setq res))
 
@@ -276,16 +290,14 @@
 ;; Common Lisp, by Jeffrey Mark Siskind and David Allen McAllester.
 
 (defun a-subset-of (x)
- "From the original Screamer-Plus.
-Nondeterministically generates all possible subsets of X."
+ "Nondeterministically generates all possible subsets of X."
   (if (null (value-of x))
        nil
       (let ((y (a-subset-of (cdr x))))
         (either (cons (car x) y) y))))
 
 (defun a-partition-of (x)
- "From the original Screamer-Plus.
-Nondeterministically generates all possible partitions of X."
+ "Nondeterministically generates all possible partitions of X."
   (if (null x)
        nil
       (let ((y (a-partition-of (cdr x))))
