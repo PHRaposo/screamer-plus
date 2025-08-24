@@ -1,32 +1,28 @@
 
-            ===================================================
-            ===                 SCREAMER+                   ===
-            ===  increasing the expressiveness of SCREAMER  ===
-            ===================================================
+### License
 
-                 Copyright 1998-2000 University of Aberdeen
-                  
-This source code may be used cost-free for non-commercial use. However,
-I request that you provide me with a short description of how you are
-using the software so that I can build up a profile of applications.
-You are free to modify and extend the source code, but please report any 
-bugs found (together with any fixes), so that the quality of the code can
-be improved. 
+**Copyright (c) 2025 Paulo Henrique Raposo**
 
-You may not distribute the code without prior consent from me.
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to:
 
-This software represents "work in progress" and is not (guaranteed to be) 
- bug-free!
+- use  
+- copy  
+- modify  
+- merge  
+- publish  
+- distribute  
+- sublicense  
+- and/or sell copies of the Software  
 
-And remember...
-      'Sometimes a scream is better than a thesis'...
+and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-Happy Screaming!
+> The above copyright and authorship notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-Simon White, February 2000                          swhite@csd.abdn.ac.uk
+**Disclaimer:**  
+The Software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of:
 
-Department of Computing Science
- King's College
-University of Aberdeen
- Aberdeen AB24 3UE
-Scotland, UK.
+- merchantability  
+- fitness for a particular purpose  
+- and noninfringement  
+
+In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the Software or the use or other dealings in the Software.

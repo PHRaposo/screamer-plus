@@ -59,3 +59,9 @@
 ;;; 04/08/2025        Added a new condition in Z noticer for CDRV: (not (enumerated-domain-p el)).
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; 24/08/2025       Full redesign of the library based on Screamer 4.0.1 and update of the terms
+;;;                  of use and license. 
+;;;
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

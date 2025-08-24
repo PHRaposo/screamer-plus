@@ -57,4 +57,5 @@
    (:file "sequences")
    (:file "sets")
    (:file "arrays")
-   (:file "objects")))
+   (:file "objects")
+   (:file "generators)))

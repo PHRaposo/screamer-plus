@@ -2,7 +2,7 @@
 ;;;;
 ;;;; Screamer-Plus: A modernized constraint logic programming library for Common Lisp
 ;;;;
-;;;; Screamer-Plus is a complete rearchitecture of constraint propagation in Screamer,
+;;;; Screamer-Plus is an extension of constraint propagation in Screamer,
 ;;;; built upon a fundamental redesign of the core functions `funcallv` and `applyv`
 ;;;; introduced in version 4.0.1 of Screamer.
 ;;;;
@@ -39,6 +39,7 @@
 ;;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (IN-PACKAGE :CL-USER)
  
 (SCREAMER:DEFINE-SCREAMER-PACKAGE :screamer+
