@@ -45,88 +45,6 @@
 (defvar *screamer+-version* (asdf:component-version (asdf:find-system :screamer-plus))
   "The version of Screamer-Plus which is loaded.")
 
-;;; An extension to the SCREAMER variable definition extends the allowable
-;;; nonnumber-types
-
-#-screamer-clos
-(defstruct (variable+ 
-      (:print-function print-variable+)
-      (:include screamer::variable)
-      (:constructor make-variable+))
-  ;; Stores the type of the variable if known
-  nonnumber-type)
-
-#+screamer-clos
-(defclass variable+ (screamer::variable)
-  ((nonnumber-type :accessor variable+-nonnumber-type :initform nil)))
-
-(defun make-variable (&optional (name nil name?))
- (let ((variable (make-variable+ :name (if name? name (incf screamer::*name*)))))
-   (setf (variable+-value variable) variable)   
-   variable))
-
-(define-symbol-macro ?? (make-variable))
-
-(defmethod variable-type-known? ((x variable+))
-  (not (null (variable+-nonnumber-type x))))
-
-(defmethod variable-get-type ((x variable+))
-  (variable+-nonnumber-type x))
-
-(defun print-variable+ (x stream print-level)
-  (declare (ignore print-level))
-  (let ((x (value-of x)))
-    (cond
-      ((variable? x) (if (and (not (equal (variable-enumerated-domain x) t))
-                           (not (null (variable-enumerated-antidomain x))))
-                       (error "This shouldn't happen"))
-        (format stream "[~S" (screamer::variable-name x))       
-        (format stream "~A"
-          (cond ((variable-type-known? x) (format nil " ~(~a~)" (variable-get-type x)))
-          ((screamer::variable-boolean? x) " Boolean")
-          ((screamer::variable-real? x)
-          (cond
-            ((screamer::variable-rational? x)
-              (cond
-                ((screamer::variable-integer? x) " integer")
-                ((screamer::variable-noninteger-rational? x) " noninteger-rational")
-                (t " rational")))
-            (t
-              (cond
-                ((screamer::variable-noninteger? x)
-                 (if (screamer::variable-nonrational? x)
-                      " nonrational-real" " noninteger-real"))
-                (t " real")))))
-                     ((screamer::variable-number? x)
-                      (cond ((screamer::variable-nonreal? x) " nonreal-number")
-                            ((screamer::variable-noninteger? x) " noninteger-number")
-                            ((screamer::variable-nonrational? x) " nonrational-number")
-                            ((screamer::variable-rational? x) " rational-number")
-                            (t " number")))
-                     ((screamer::variable-nonnumber? x) " nonnumber")
-                     ((screamer::variable-nonreal? x) " nonreal")
-                     ((screamer::variable-noninteger? x) " noninteger")
-                     (t "")))       
-        (if (screamer::variable-real? x)
-          (if (screamer::variable-lower-bound x)
-      (if (screamer::variable-upper-bound x)
-              (format stream " ~D:~D" (screamer::variable-lower-bound x)
-                (screamer::variable-upper-bound x))
-              (format stream " ~D:" (screamer::variable-lower-bound x)))
-      (if (screamer::variable-upper-bound x)
-              (format stream " :~D" (screamer::variable-upper-bound x)))))
-        (if (and (screamer::variable-rational? x)
-                 (screamer::variable-possibly-noninteger-rational? x)
-                 (integerp (screamer::variable-max-denom x)))
-         (format stream " max-denom:~D" (screamer::variable-max-denom x)))        
-        (if (and (not (equal (screamer::variable-enumerated-domain x) t))
-              (not (screamer::variable-boolean? x)))
-          (format stream " enumerated-domain:~S" (screamer::variable-enumerated-domain x)))        
-        (if (not (null (screamer::variable-enumerated-antidomain x)))
-          (format stream " enumerated-antidomain:~S" (screamer::variable-enumerated-antidomain x)))
-        (format stream "]"))     
-      (t (format stream "~S" x)))))
-
 (defun slot-names-of (obj)
   (mapcar #'closer-mop:slot-definition-name
           (closer-mop:class-slots (class-of obj))))
@@ -157,7 +75,7 @@
   PROPAGATION PROPERTIES: as for other logical functions."
   (orv (notv p) q))
 
-(screamer::defmacro-compile-time carefully (&body forms)
+(defmacro-compile-time carefully (&body forms)
  "Redesigned for original Screamer-Plus.
   Evaluates FORMS, returning its value or NIL on error, emitting a warning."
   `(handler-case
@@ -166,8 +84,9 @@
        (warn "~s failed: ~a" ',forms e)
        nil)))
 
-(screamer::defmacro-compile-time carefully-evaluate (form)
-  "Evaluates FORM, returning its value or NIL on error, emitting a warning."
+(defmacro-compile-time carefully-evaluate (form)
+  "Redesigned for original Screamer-Plus.
+   Evaluates FORM, returning its value or NIL on error, emitting a warning."
   `(handler-case
        ,form
      (error (e)
@@ -196,19 +115,55 @@
           ,@cond-clauses))
       ,@(mapcar #'first clauses))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Functions: listpv, conspv, symbolpv, stringpv
-;;; 
-;;; Function: a-typed-varv
-;;; Function: typepv
-;;; Functions: a-listv, a-consv, a-symbolv, a-stringv
-;;;;
-;;;; IN-PROGRESS
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun listpv (x)
+  "Returns T if X is known to be a list."
+  (typepv x 'list))
+
+(defun conspv (x)
+  "Returns T if X is known to be a cons."
+  (typepv x 'cons))
+
+(defun symbolpv (x)
+  "Returns T if X is known to be a symbol."
+  (typepv x 'symbol))
+
+(defun stringpv (x)
+  "Returns T if X is known to be a string."
+  (typepv x 'string))
+
+(defun a-listv (&optional name)
+  "Returns a variable whose value is constrained to be a list."
+(let ((x (if name (make-variable name) (make-variable))))
+ (restrict-type! x 'list)
+  x))
+
+(defun a-consv (&optional name)
+  "Returns a variable whose value is constrained to be a cons."
+(let ((x (if name (make-variable name) (make-variable))))
+ (restrict-type! x 'cons)
+  x))
+
+(defun a-symbolv (&optional name)
+  "Returns a variable whose value is constrained to be a symbol."
+ (let ((x (if name (make-variable name) (make-variable))))
+   (restrict-type! x 'symbol)
+  x))
+
+(defun a-stringv (&optional name)
+  "Returns a variable whose value is constrained to be a string."
+ (let ((x (if name (make-variable name) (make-variable))))
+   (restrict-type! x 'string)
+  x))
+
+(defun a-typed-varv (type &optional name)
+  "Returns a variable whose value is constrained to be of the specified TYPE."
+ (let ((x (if name (make-variable name) (make-variable))))
+   (restrict-type! x type)
+  x))
 
 (defun formatv (destination control-string &rest args)
 "Redesigned for original Screamer-Plus."
- (applyv #'format (apply #'list* destination control-string args)))
+ (applyv #'format (apply #'list destination control-string args)))
 
 (defun reifyv (x)
 "Redesigned for original Screamer-Plus."

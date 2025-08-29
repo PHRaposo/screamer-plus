@@ -66,7 +66,3 @@
 
 (defun remove-duplicatesv (list &key (test #'equal))
  (funcallv #'remove-duplicates list :test test))
-
-(defun lengthv (x)
- (funcallv #'length x))
-

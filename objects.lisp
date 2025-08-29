@@ -67,10 +67,7 @@
   (funcallv #'slot-boundp obj slotname))
 
 (defun slot-valuev (objvar slotname)
-  (ifv (andv (slot-boundpv objvar slotname)
-             (memberv slotname (slot-names-ofv objvar)))
-       (funcallv #'slot-value objvar slotname)
-       nil))
+ (funcallv #'slot-value objvar slotname))
 
 (defun reconcile-objectsv (objvar1 objvar2)
   (let ((slots1 (slot-names-ofv objvar1))

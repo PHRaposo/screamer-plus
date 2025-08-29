@@ -49,10 +49,9 @@
   :version "0.2.0"
   :depends-on ((:version :screamer "4.0.1") :closer-mop)
   :components
-  ((:file "package")
-   (:file "screamer-patch")
+  ((:file "screamer-patch")
+   (:file "package")
    (:file "screamer-plus")
-   ;(:file "nonnumber-types") <== IN PROGRESS
    (:file "lists")
    (:file "sequences")
    (:file "sets")
