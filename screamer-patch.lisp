@@ -41,6 +41,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+
+ #-screamer-extensible-types
+ (error "Screamer-Plus requires the Screamer feature 'screamer-extensible-types'.
+Enable this extension and include the following non boolean, non number types in 
+*nonboolean-nonnumber-types*:
+LIST, CONS, ARRAY and STRING.")
+
  #+allegro (setq excl:*redefinition-warnings* (remove :operator excl:*redefinition-warnings*))
 
  #+sbcl (setq sb-ext:*redefinition-warnings* nil)

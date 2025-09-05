@@ -40,12 +40,6 @@
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-#-screamer-extensible-types
- (error "Screamer-Plus requires the Screamer extension 'screamer-extensible-types'.
-Enable this extension and include the following non boolean, non number types in 
-*nonboolean-nonnumber-types*:
-LIST, CONS, ARRAY and STRING.")
-
 (in-package :screamer+)
 
 (defvar *screamer+-version* (asdf:component-version (asdf:find-system :screamer-plus))
