@@ -53,26 +53,12 @@
     :assert!-equalv
     :known?-true
     :known?-false
-    :known?-typepv
-    :restrict-list!
-    :restrict-cons!
-    :typepv
-    :restrict-type!
     :variable-enumerated-domain
     :variable-enumerated-antidomain
     :variable?
-    :value-of)
+    :value-of
+    :deep-bound?)
  (:export
-    :listpv
-    :conspv
-    :symbolpv
-    :stringpv
-    :typepv
-    :a-listv
-    :a-consv
-    :a-symbolv
-    :a-stringv
-    :a-typed-varv
     :impliesv
     :not-equalv
     :??

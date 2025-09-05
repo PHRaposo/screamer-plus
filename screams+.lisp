@@ -1,6 +1,7 @@
 (in-package :screamer+)
 
 ;; EXAMPLES FROM SCREAMER-PLUS.PDF
+;; By Simon White
 
 ;; A SCREAMER+ Program to Play the Mastermind Game
 (defun mastermind ()

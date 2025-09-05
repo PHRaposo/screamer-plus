@@ -40,10 +40,27 @@
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+#-screamer-extensible-types
+ (error "Screamer-Plus requires the Screamer extension 'screamer-extensible-types'.
+Enable this extension and include the following non boolean, non number types in 
+*nonboolean-nonnumber-types*:
+LIST, CONS, ARRAY and STRING.")
+
 (in-package :screamer+)
 
 (defvar *screamer+-version* (asdf:component-version (asdf:find-system :screamer-plus))
   "The version of Screamer-Plus which is loaded.")
+
+(defmacro define-screamer-plus-package (defined-package-name &body options)
+  "Convenience wrapper around DEFPACKAGE. Passes its argument directly
+to DEFPACKAGE, and automatically injects two additional options:
+
+    \(:shadowing-import-from :screamer :defun :multiple-value-bind :y-or-n-p)
+    \(:use :cl :screamer :screamer+)"
+  `(defpackage ,defined-package-name
+     ,@options
+     (:shadowing-import-from :screamer :defun :multiple-value-bind :y-or-n-p)
+     (:use :cl :screamer :screamer+)))
 
 (defun slot-names-of (obj)
   (mapcar #'closer-mop:slot-definition-name
@@ -54,12 +71,12 @@
   (typep var 'standard-object))
 
 (defun eqv (x y)
-  "Original from Screamer-Plus.
+  "Original from Screamer-Plus, by Simon White.
   A simple version of eqv for atoms. PROPAGATION PROPERTIES: as for funcallv."
   (funcallv #'eq x y))
 
 (defun impliesv (p q)
-  "Original from Screamer-Plus.
+  "Original from Screamer-Plus, by Simon White.
   This was not included in the standard SCREAMER distribution.
   The following generates the truth table for implication:
   > (setq p (a-booleanv))
@@ -76,7 +93,7 @@
   (orv (notv p) q))
 
 (defmacro-compile-time carefully (&body forms)
- "Redesigned for original Screamer-Plus.
+ "Redesigned from original Screamer-Plus.
   Evaluates FORMS, returning its value or NIL on error, emitting a warning."
   `(handler-case
        (progn ,@forms)
@@ -85,7 +102,7 @@
        nil)))
 
 (defmacro-compile-time carefully-evaluate (form)
-  "Redesigned for original Screamer-Plus.
+  "Redesigned from original Screamer-Plus.
    Evaluates FORM, returning its value or NIL on error, emitting a warning."
   `(handler-case
        ,form
@@ -94,7 +111,7 @@
        nil)))
 
 (screamer::defmacro-compile-time ifv (condition then &optional else)
-  "Redesigned for original Screamer-Plus."
+  "Redesigned from original Screamer-Plus."
   (let ((g-cond (gensym "COND"))
         (g-then (gensym "THEN"))
         (g-else (gensym "ELSE")))
@@ -103,63 +120,22 @@
                ,condition ,then ,else)))
 
  (screamer::defmacro-compile-time condv (&rest clauses)
-  (let* ((args (mapcar (lambda (_) (gensym "ARG")) clauses))
+  "Similar to IFV, but for multiple clauses."
+  (let* ((last-clause (car (last clauses)))
+         (final-clauses (if (and (consp last-clause) (eq (first last-clause) 't))
+                            clauses
+                            (append clauses '((t nil)))))
+         (args (mapcar (lambda (_) (gensym "ARG")) final-clauses))
          (cond-clauses
            (mapcar #'list args
                    (mapcar (lambda (clause)
                              `(progn ,@(cdr clause)))
-                           clauses))))
+                           final-clauses))))
     `(funcallv
       (lambda ,args
         (cond
           ,@cond-clauses))
-      ,@(mapcar #'first clauses))))
-
-(defun listpv (x)
-  "Returns T if X is known to be a list."
-  (typepv x 'list))
-
-(defun conspv (x)
-  "Returns T if X is known to be a cons."
-  (typepv x 'cons))
-
-(defun symbolpv (x)
-  "Returns T if X is known to be a symbol."
-  (typepv x 'symbol))
-
-(defun stringpv (x)
-  "Returns T if X is known to be a string."
-  (typepv x 'string))
-
-(defun a-listv (&optional name)
-  "Returns a variable whose value is constrained to be a list."
-(let ((x (if name (make-variable name) (make-variable))))
- (restrict-type! x 'list)
-  x))
-
-(defun a-consv (&optional name)
-  "Returns a variable whose value is constrained to be a cons."
-(let ((x (if name (make-variable name) (make-variable))))
- (restrict-type! x 'cons)
-  x))
-
-(defun a-symbolv (&optional name)
-  "Returns a variable whose value is constrained to be a symbol."
- (let ((x (if name (make-variable name) (make-variable))))
-   (restrict-type! x 'symbol)
-  x))
-
-(defun a-stringv (&optional name)
-  "Returns a variable whose value is constrained to be a string."
- (let ((x (if name (make-variable name) (make-variable))))
-   (restrict-type! x 'string)
-  x))
-
-(defun a-typed-varv (type &optional name)
-  "Returns a variable whose value is constrained to be of the specified TYPE."
- (let ((x (if name (make-variable name) (make-variable))))
-   (restrict-type! x type)
-  x))
+      ,@(mapcar #'first final-clauses))))
 
 (defun formatv (destination control-string &rest args)
 "Redesigned for original Screamer-Plus."
@@ -195,7 +171,7 @@
        (values ,retval))))
 
 (defun all-different2 (x xs)
-"Original for original Screamer-Plus."
+"Original for original Screamer-Plus, by Simon White."
   (if (null xs)
       t
       (andv (notv (funcallv #'equal x (car xs)))
@@ -203,7 +179,7 @@
             (all-different2 (car xs) (cdr xs)))))
 
 (defun all-differentv (x &rest xs)
-"Original for original Screamer-Plus."
+"Original for original Screamer-Plus, by Simon White."
   (all-different2 x xs))
 
 (defun constraint-fn (f)
