@@ -57,7 +57,9 @@
     :variable-enumerated-antidomain
     :variable?
     :value-of
-    :deep-bound?)
+    :deep-bound?
+    :deep-value-of
+    :attach-noticer!)
  (:export
     :impliesv
     :not-equalv

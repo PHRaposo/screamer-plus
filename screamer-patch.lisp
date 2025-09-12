@@ -44,9 +44,12 @@
 
  #-screamer-extensible-types
  (error "Screamer-Plus requires the Screamer feature 'screamer-extensible-types'.
-Enable this extension and include the following non boolean, non number types in 
-*nonboolean-nonnumber-types*:
-LIST, CONS, ARRAY and STRING.")
+Enable this extension and include the following non number types in *nonnumber-types*:
+LIST, CONS, ARRAY, STRING and SYMBOL.")
+
+(unless (subsetp '(LIST CONS ARRAY STRING SYMBOL) screamer::*nonnumber-types*)
+ (error "Screamer-Plus requires the following NON NUMBER VARIABLE TYPES:
+  LIST, CONS, ARRAY, STRING and SYMBOL."))
 
  #+allegro (setq excl:*redefinition-warnings* (remove :operator excl:*redefinition-warnings*))
 

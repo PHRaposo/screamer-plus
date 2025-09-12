@@ -104,39 +104,58 @@ to DEFPACKAGE, and automatically injects two additional options:
        (warn "~s failed: ~a" ',form e)
        nil)))
 
-(screamer::defmacro-compile-time ifv (condition then &optional else)
+(defmacro-compile-time ifv (condition then &optional else)
   "Redesigned from original Screamer-Plus."
   (let ((g-cond (gensym "COND"))
         (g-then (gensym "THEN"))
         (g-else (gensym "ELSE")))
-    `(funcallv (lambda (,g-cond ,g-then ,g-else)
-                 (if (not (null ,g-cond)) ,g-then ,g-else))
-               ,condition ,then ,else)))
+    `(let ((,g-cond ,condition)
+           (,g-then ,then)
+           (,g-else ,else))
+       (cond ((known?-true ,g-cond) ,then)
+             ((known?-false ,g-cond) ,else)
+             (t (funcallv (lambda (cond then else)
+                            (if cond then else))
+                          ,g-cond ,g-then ,g-else))))))
 
- (screamer::defmacro-compile-time condv (&rest clauses)
-  "Similar to IFV, but for multiple clauses."
+ (defmacro-compile-time condv (&rest clauses)
+  "Screamer version of Common LISP COND macro."
   (let* ((last-clause (car (last clauses)))
          (final-clauses (if (and (consp last-clause) (eq (first last-clause) 't))
-                            clauses
-                            (append clauses '((t nil)))))
-         (args (mapcar (lambda (_) (gensym "ARG")) final-clauses))
-         (cond-clauses
-           (mapcar #'list args
-                   (mapcar (lambda (clause)
-                             `(progn ,@(cdr clause)))
-                           final-clauses))))
-    `(funcallv
-      (lambda ,args
+                             clauses
+                             (append clauses '((t nil)))))
+          (gsyms (mapcar (lambda (_) (gensym "CONDV")) final-clauses))
+          (bodies (mapcar (lambda (clause)
+                            (let ((body (cdr clause)))
+                              (if (or (null body)
+                                      (and (= (length body) 1)
+                                            (null (first body))))
+                                   nil
+                                 `(progn ,@body))))
+                          final-clauses))
+          (known-cond-clauses
+            (mapcar (lambda (gsym clause body)
+                     (unless (and (consp clause) (eq (first clause) 't))
+                      `((known?-true ,gsym) ,body)))
+                    gsyms final-clauses bodies))
+          (funcallv-cond-clauses
+            (mapcar (lambda (gsym body)
+                      `(,gsym ,body))
+                    gsyms bodies)))
+      `(let ,(mapcar #'list gsyms (mapcar #'first final-clauses))
         (cond
-          ,@cond-clauses))
-      ,@(mapcar #'first final-clauses))))
+          ,@(remove nil known-cond-clauses)
+          (t (funcallv
+              (lambda ,gsyms
+                (cond ,@funcallv-cond-clauses))
+              ,@gsyms))))))
 
 (defun formatv (destination control-string &rest args)
-"Redesigned for original Screamer-Plus."
+"Redesigned from original Screamer-Plus."
  (applyv #'format (apply #'list destination control-string args)))
 
 (defun reifyv (x)
-"Redesigned for original Screamer-Plus."
+"Redesigned from original Screamer-Plus."
  (cond ((known?-true x) 1)
        ((known?-false x) 0)
        (t (let* ((z (an-integer-betweenv 0 1)))
@@ -152,32 +171,21 @@ to DEFPACKAGE, and automatically injects two additional options:
 ;; Some of them are deprecated.
 
 (defmacro-compile-time make-equal (var value &optional (retval '(fail)))
-"Original for original Screamer-Plus."
-  `(if (possibly? (equalv ,var ,value))
-       (progn
-   (assert! (equalv ,var ,value))
-   (values ,var))
-     (progn
-       (warn "(make-equal ~s ~s) failed~%  ~s = ~s; ~s = ~s"
-       (quote ,var) (quote ,value)
-       (quote ,var) ,var
-       (quote ,value) ,value)
-       (values ,retval))))
-
-(defun all-different2 (x xs)
-"Original for original Screamer-Plus, by Simon White."
-  (if (null xs)
-      t
-      (andv (notv (funcallv #'equal x (car xs)))
-            (all-different2 x (cdr xs))
-            (all-different2 (car xs) (cdr xs)))))
-
-(defun all-differentv (x &rest xs)
-"Original for original Screamer-Plus, by Simon White."
-  (all-different2 x xs))
+"Redesigned from original Screamer-Plus."
+  `(cond ((possibly? (equalv ,var ,value))
+          (assert! (equalv ,var ,value))
+           (values ,var))
+         ((possibly? (equalv ,(deep-value-of var) ,(deep-value-of value)))
+          (assert! (equalv ,(deep-value-of var) ,(deep-value-of value)))
+          (values ,var))
+        (t (warn "(make-equal ~s ~s) failed~%  ~s = ~s; ~s = ~s"
+           (quote ,var) (quote ,value)
+           (quote ,var) ,var
+           (quote ,value) ,value)
+           (values ,retval))))
 
 (defun constraint-fn (f)
-"Redesigned for original Screamer-Plus."
+"Redesigned from original Screamer-Plus."
   (alexandria:curry (lambda (&rest args)
                       (value-of (applyv (value-of f) args)))))
 
@@ -186,7 +194,7 @@ to DEFPACKAGE, and automatically injects two additional options:
  (remove-duplicatesv x))
 
 (defun not-equalv (x y &key (full-propagation nil))
-"Redesigned for original Screamer-Plus.
+"Redesigned from original Screamer-Plus.
 DEPRECATED. Use (notv (equalv ...)) instead."
  (declare (ignore full-propagation))
  (let ((z (a-booleanv)))  
@@ -204,7 +212,7 @@ DEPRECATED. Use (notv (equalv ...)) instead."
     z))
 
 (defmacro-compile-time setq-domains (vars vals &aux (res nil))
-"Original for original Screamer-Plus."
+"Original from original Screamer-Plus."
  (dolist (var vars) (setq res (nconc (list var vals) res)))
  (cons 'setq res))
 

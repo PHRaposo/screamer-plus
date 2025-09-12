@@ -58,11 +58,18 @@
   (applyv #'notevery (cons predicate sequences)))
 
 (defun subseqv (sequence start &optional end)
-  (funcallv #'subseq sequence start end))
+  (if (or (variable? sequence)
+          (variable? start)
+          (and end (variable? end)))
+      (applyv #'subseq (append (list sequence start)
+                               (when end (list end))))
+      (subseq sequence start end)))
 
 (defun countv (item list &key (test #'eql))
   "Returns a variable constrained to be the number of times ITEM occurs in LIST, using TEST."
-  (funcallv #'count item list :test test))
+  (if (or (variable? item) (variable? list))
+      (funcallv #'count item list :test test)
+      (count item list :test test)))
 
 (defun remove-duplicatesv (list &key (test #'equal))
  (funcallv #'remove-duplicates list :test test))

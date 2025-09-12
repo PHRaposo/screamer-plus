@@ -43,63 +43,120 @@
 (in-package :screamer+)
 
 (defun carv (x)
- (funcallv #'car x))
+ (typecase x
+  (list (car x))
+  (screamer::variable
+   (cond ((not (eq (screamer::variable-value x) x))
+          (carv (screamer::variable-value x)))
+          (t (funcallv #'car x))))
+  (otherwise (error "Cannot take CARV of ~A~%" x))))
 
 (defun cdrv (x)
- (funcallv #'cdr x))
+ (typecase x 
+  (list (cdr x))
+  (screamer::variable
+   (cond ((not (eq (screamer::variable-value x) x))
+          (cdrv (screamer::variable-value x)))
+          (t (funcallv #'cdr x))))
+  (otherwise (error "Cannot take CDRV of ~A~%" x))))
 
 (defun restv (x)
-  (funcallv #'rest x))
+ (typecase x 
+  (list (rest x))
+  (screamer::variable
+   (cond ((not (eq (screamer::variable-value x) x))
+          (restv (screamer::variable-value x)))
+          (t (funcallv #'rest x))))
+  (otherwise (error "Cannot take RESTV of ~A~%" x))))
 
  (defun consv (x y)
  (let* ((z (funcallv #'cons x y))
         (carv (carv z))
         (cdrv (cdrv z)))
-   (assert! (equalv carv x))
-   (assert! (equalv cdrv y))
-   (if (or (known? (conspv y)) (known? (listpv y)))
-       (assert! (listpv z))
-       (assert! (conspv z)))
+  (assert! (equalv carv x))
+  (assert! (equalv cdrv y))
    z))
 
 (defun nthv (n lst)
-  (funcallv #'nth n lst))
+ (typecase lst
+  (list (typecase n 
+         (integer (nth n lst))
+         (screamer::variable (funcallv #'nth n lst))
+         (otherwise (error "Cannot take NTHV ~A of ~A.~%" n lst))))
+  (screamer::variable (funcallv #'nth n lst))
+  (otherwise (error "Cannot take NTHV ~A of ~A.~%" n lst))))
 
 (defun firstv (x)
- (funcallv #'first x))
+  (typecase x 
+    (list (first x))
+    (screamer::variable (funcallv #'first x))
+    (otherwise (error "Cannot take FIRSTV of ~A.~%" x))))
 
 (defun secondv (x)
- (funcallv #'second x))
+  (typecase x 
+    (list (second x))
+    (screamer::variable (funcallv #'second x))
+    (otherwise (error "Cannot take SECONDV of ~A.~%" x))))
 
 (defun thirdv (x)
- (funcallv #'third x))
+  (typecase x 
+    (list (third x))
+    (screamer::variable (funcallv #'third x))
+    (otherwise (error "Cannot take THIRDV of ~A.~%" x))))
 
 (defun fourthv (x)
- (funcallv #'fourth x))
+  (typecase x 
+    (list (fourth x))
+    (screamer::variable (funcallv #'fourth x))
+    (otherwise (error "Cannot take FOURTHV of ~A.~%" x))))
 
 (defun fifthv (x)
- (funcallv #'fifth x))
+  (typecase x 
+    (list (fifth x))
+    (screamer::variable (funcallv #'fifth x))
+    (otherwise (error "Cannot take FIFTHV of ~A.~%" x))))
 
 (defun sixthv (x)
- (funcallv #'sixth x))
+  (typecase x 
+    (list (sixth x))
+    (screamer::variable (funcallv #'sixth x))
+    (otherwise (error "Cannot take SIXTHV of ~A.~%" x))))
 
 (defun seventhv (x)
- (funcallv #'seventh x))
+  (typecase x 
+    (list (seventh x))
+    (screamer::variable (funcallv #'seventh x))
+    (otherwise (error "Cannot take SEVENTHV of ~A.~%" x))))
 
 (defun eighthv (x)
- (funcallv #'eighth x))
+  (typecase x 
+    (list (eighth x))
+    (screamer::variable (funcallv #'eighth x))
+    (otherwise (error "Cannot take EIGHTHV of ~A.~%" x))))
 
 (defun ninthv (x)
- (funcallv #'ninth x))
+  (typecase x 
+    (list (ninth x))
+    (screamer::variable (funcallv #'ninth x))
+    (otherwise (error "Cannot take NINTHV of ~A.~%" x))))
 
 (defun tenthv (x)
- (funcallv #'tenth x))
+  (typecase x 
+    (list (tenth x))
+    (screamer::variable (funcallv #'tenth x))
+    (otherwise (error "Cannot take TENTHV of ~A.~%" x))))
 
 (defun lengthv (x)
- (funcallv #'length x))
+  (typecase x 
+    (list (length x))
+    (screamer::variable (funcallv #'length x))
+    (otherwise (error "Cannot take LENGTHV of ~A.~%" x))))
 
 (defun nthcdrv (n lst)
- (funcallv #'nthcdr n lst))
+  (typecase lst
+    (list (nthcdr n lst))
+    (screamer::variable (funcallv #'nthcdr n lst))
+    (otherwise (error "Cannot take NTHCDRV ~A of ~A.~%" n lst))))
 
 (defun make-listv (size &key (initial-element '(make-variable)))
  (if (and (variable? size)
@@ -167,7 +224,7 @@
       (t z))))
 
 (defun listv (&rest elements)
-  (let ((z (applyv #'list elements))
+  (let* ((z (applyv #'list elements))
         (z-len (lengthv z)))
   (cond ((bound? z-len)
           (dotimes (i (value-of z-len))
