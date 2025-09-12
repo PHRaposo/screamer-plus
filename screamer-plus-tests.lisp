@@ -24,7 +24,7 @@
  (defun test-listv ()
  (let ((a (a-listv)))
   (assert! (memberv a '(1 1/2 2.5 #C(2 3) nil t two "THREE" (four)))) 
-  (known? (equalv '(four) a))))
+  (known? (memberv a '(nil (four))))))
 
  (defun test-stringv ()
  (let ((a (a-stringv)))
@@ -34,7 +34,7 @@
  (defun test-symbolv ()
  (let ((a (a-symbolv)))
   (assert! (memberv a '(1 1/2 2.5 #C(2 3) nil t two "THREE" (four))))
-  (known? (equalv 'two a))))
+  (known? (memberv a '(nil t two)))))
 
 (defun test-booleanv-symbolv ()
  (let ((x (a-member-ofv '(t nil foo bar 1 2 3))))
