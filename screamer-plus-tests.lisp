@@ -51,9 +51,11 @@
 
 (defun test-ifv-1 ()
  (let* ((x (a-member-ofv '(1 two "THREE" (four))))
-       (result (make-variable))) (assert! (equalv result (ifv (integerpv x)
-                     'INTEGER
-                     'NON-INTEGER)))
+       (result (make-variable)))
+  (assert! (equalv result
+                  (ifv (integerpv x)
+                        'INTEGER
+                        'NON-INTEGER)))
   (known? (memberv result '(INTEGER NON-INTEGER)))))
 
 (defun test-ifv-2 ()
@@ -148,8 +150,8 @@
         (y (make-variable))
         (z (consv x y)))
     (make-equal z '(a b c))
-    (andv (known? (equalv x 'a))
-          (known? (equalv y '(b c))))))
+    (known? (andv (equalv x 'a)
+                  (equalv y '(b c))))))
 
 (defun test-carv-1 ()
   (let* ((x (make-variable))
@@ -201,17 +203,201 @@
          (y (a-member-ofv '(() (a) (b) (c) (a b) (a c) (b c) (a b c))))
          (z (appendv x y)))
     (assert! (equalv z '(a b c)))
-    (andv (known? (memberv x '(() (a) (a b) (a b c))))
-          (known? (notv (memberv x '((a c) (b) (c) (b c)))))
-          (known? (memberv y '((a b c) (b c) (c) ())))
-          (known? (notv (memberv y '((a b) (a c) (a) (b))))))))
+    (known? (andv (memberv x '(() (a) (a b) (a b c)))
+                  (notv (memberv x '((a c) (b) (c) (b c))))
+                  (memberv y '((a b c) (b c) (c) ()))
+                  (notv (memberv y '((a b) (a c) (a) (b))))))))
 
-;; TODO: MAKE-LISTV, ALL-DIFFERENTV (REMOVED), SET-EQUALV, INTERSECTIONV, UNIONV, BAG-EQUALV, 
-;; SUBSETPV, MAKE-ARRAYV, AREFV, MAKE-INSTANCEV, SLOT-VALUEV, CLASSPV, CLASS-OFV, CLASS-NAMEV,
-;; SLOT-EXISTS-PV, RECONCILE, MAPCARV, MAPLISTV, AT-LEASTV, AT-MOSTV, EXACTLYV, CONSTRAINT-FN (DEPRECATED)
-;; FUNCALLINV (DEPRECATED), FORMATV.
+(defun test-make-listv ()
+ (let* ((n (make-variable))
+        (z (make-listv n)))
+    (make-equal n 4)
+    (assert! (equalv (nthv 1 z) 'foo))
+    (known? (andv (=v (lengthv z) 4)
+                  (equalv (secondv z) 'foo)))))
 
-;; EXAMPLES: MASTERMIND and CAR-SEQUENCING-PROBLEM (in screams+.lisp)
+(defun test-all-differentv ()
+ ;;note: this is currently a lifted function from Screamer 4.0.1. 
+ (let ((variables (n-variables 3 'a-member-ofv '(0 1 2))))
+  (assert! (all-differentv variables))
+  (equal-set? '((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))
+   (all-values (solution variables (static-ordering #'linear-force))))))
+
+(defun test-set-equalv ()
+ (let* ((x '(a b c))
+        (y (n-variables 4 'a-member-ofv '(a b c)))
+        (same-set (set-equalv x y)))
+  (assert! same-set)
+  (every #'identity
+   (all-values (third (solution (list x y same-set) (static-ordering #'linear-force)))))))
+
+(defun test-intersectionv-1 ()
+  (let* ((x (make-variable))
+         (i (intersectionv x '(a a b c c c))))
+    (make-equal x '(a b d e f))
+    (equal-set? '(a b) (value-of i))))
+
+(defun test-unionv-1 ()
+  (let* ((x (make-variable))
+        (u (unionv x '(a a b c c c))))
+    (make-equal x '(a b d e f))
+   (equal-set? '(a b c d e f) (value-of u))))
+
+(defun test-bag-equalv ()
+(let* ((x (n-variables 6 'a-member-ofv '(a b c))) 
+       (y '(c a c b c a))
+       (same-bag (bag-equalv x y)))
+ (assert! same-bag)
+ (every #'identity 
+  (all-values (third (solution (list x y same-bag) (static-ordering #'linear-force)))))))
+
+(defun test-subsetv ()
+  (let* ((x (n-variables 6 'a-member-ofv '(a b c d e f g h i j)))
+         (y '(a b c))
+         (sub (subsetpv x y)))
+    (assert! sub)
+    (every #'identity
+     (all-values (third (solution (list x y sub) (static-ordering #'linear-force)))))))
+
+(defun test-a-subset-ofv ()
+ (let* ((x (a-subset-ofv '(0 1 2 3))))
+        (known? (memberv x
+                        '(NIL (0) (1) (0 1) (2) (0 2) (1 2)
+                         (0 1 2) (3) (0 3) (1 3) (0 1 3) (2 3)
+                         (0 2 3) (1 2 3) (0 1 2 3))))))
+
+(defun test-make-arrayv ()
+  (let* ((d (make-variable))
+         (a (make-arrayv d :initial-element (a-member-ofv '(0 1 2)))))
+    (make-equal d '(2 3))
+    (known? (memberv a '(#2A((0 0 0) (0 0 0))
+                         #2A((1 1 1) (1 1 1))
+                         #2A((2 2 2) (2 2 2)))))))
+
+(defun test-arefv ()
+ (let* ((a (make-array '(2 3) :initial-contents '((p q r) (s t u))))
+        (x (make-variable))
+        (y (make-variable))
+        (val (arefv a x y)))
+  (assert! (=v x 0))
+  (assert! (=v y 1))
+  (known? (equalv 'Q val))))
+
+;; TEST-MAKE-INSTANCEV
+
+;; TEST-SLOT-VALUEV
+
+;; TEST-CLASSPV
+
+;; TEST-CLASS-OFV
+
+;; TEST-CLASS-NAMEV
+
+;; TEST-SLOT-EXIST-PV
+
+;; TEST-RECONCILE
+
+(defun test-mapcarv ()
+(let* ((a (a-listv))
+       (b (a-listv))
+       (sums (mapcarv #'+v a b)))
+ (make-equal a '(1 2 3))
+ (make-equal b '(10 20 30))
+ (known? (equalv '(11 22 33) sums))))
+
+(defun test-maplistv ()
+ (let* ((a (make-variable))
+        (b (maplistv (lambda (x) (cons 'head x)) a)))
+  (make-equal a '(1 2 3 4))
+  (known? (equalv b '((HEAD 1 2 3 4) (HEAD 2 3 4) (HEAD 3 4) (HEAD 4))))))
+
+(defun test-mapv ()
+ (let ((x (vector (an-integer-betweenv 0 5) (an-integer-betweenv 0 5))))
+  (assert! (apply #'andv (mapv 'list (lambda (el) (<=v el 3)) x)))
+  (known? (andv (<=v (arefv x 0) 3)
+                (<=v (arefv x 1) 3)))))
+
+(defun test-everyv ()
+ (let ((x (make-listv 4)))
+   (assert! (everyv #'integerpv x))
+    (known? (andv (integerpv (firstv x))
+                  (integerpv (secondv x))
+                  (integerpv (thirdv x))
+                  (integerpv (fourthv x))))))
+
+(defun test-somev ()
+ (let ((x (a-member-ofv '("abc" "def" "ghi"))))
+   (assert! (somev (lambda (el) (equalv el #\h)) x))
+   (known? (equalv x "ghi"))))
+
+(defun test-noteveryv ()
+(let ((x (n-variables 2 'a-member-ofv '(a b))))
+  (assert! (noteveryv (lambda (el) (equalv el 'a)) x))
+  (assert! (noteveryv (lambda (el) (equalv el 'b)) x))
+  (equal-set? '((A B) (B A))
+   (all-values (solution x (static-ordering #'linear-force))))))
+
+(defun test-notanyv ()
+(let ((x (n-variables 2 'a-member-ofv '(a b c))))
+  (assert! (notanyv (lambda (el) (equalv el 'c)) x))
+  (equal-set? '((A A) (A B) (B A) (B B))
+   (all-values (solution x (static-ordering #'linear-force))))))
+
+(defun test-at-leastv ()
+  (let ((x (n-variables 3 'a-member-ofv '(a b))))
+    (assert! (at-leastv 2 (lambda (el) (equalv el 'a)) x))
+    (equal-set? '((B A A) (A B A) (A A B) (A A A))
+      (all-values (solution x (static-ordering #'linear-force))))))
+
+(defun test-at-mostv ()
+  (let ((x (n-variables 3 'a-member-ofv '(a b))))
+    (assert! (at-mostv 1 (lambda (el) (equalv el 'a)) x))
+    (equal-set? '((B B B) (B B A) (B A B) (A B B))
+      (all-values (solution x (static-ordering #'linear-force))))))
+
+(defun test-exactlyv ()
+  (let ((x (n-variables 3 'a-member-ofv '(a b))))
+    (assert! (exactlyv 2 (lambda (el) (equalv el 'a)) x))
+    (equal-set? '((A A B) (A B A) (B A A))
+      (all-values (solution x (static-ordering #'linear-force))))))
+
+(defun test-countv ()
+  (let* ((lst (list 'a 'b 'c 'a 'b 'a))
+         (x (make-variable))
+         (y (countv x lst :test #'equal)))
+    (make-equal x 'a)
+    (known? (=v 3 y))))
+
+(defun test-remove-duplicatesv ()
+(let* ((variables (n-variables 10 'an-integer-betweenv 0 10))
+       (no-duplicates (remove-duplicatesv variables :test #'eql)))
+ (assert! (equalv no-duplicates '(1)))
+ (known? (equalv variables '(1 1 1 1 1 1 1 1 1 1)))))
+
+;; needs work: make CONSTRAINT-FN work at compile-time
+;(defun test-constraint-fn ()
+;  (let ((x (make-variable))
+;        (y (make-variable)))
+;    (assert! (andv (funcall (constraint-fn #'integerp) x)
+;                   (funcall (constraint-fn #'integerp) y)
+;                   (funcall (constraint-fn #'=) x y)
+;                   (funcall (constraint-fn #'=) x 3)))
+;    (known? (andv (=v x 3)
+;                  (=v y 3)))))
+
+(defun test-funcallinv ()
+ (let* ((a (make-variable))
+        (b (funcallinv #'reverse #'reverse a)))
+  (make-equal b '(one two three))
+  (known? (equalv '(three two one) a))))
+
+(defun test-formatv ()
+ (let* ((x (make-variable))
+        (y (make-variable))
+        (z (formatv nil "*** ~a ~a ***" x y)))
+   (make-equal x 'hello)
+   (make-equal y 'world)
+   (known? (equalv z "*** HELLO WORLD ***"))))
 
 (defun prime-ordeal-plus ()
   (let ((bug? nil))
@@ -229,11 +415,12 @@
             '(test-listpv
               test-stringpv
               test-symbolpv
-              test-ifv-1
-              test-ifv-2
               test-listv
               test-stringv
               test-symbolv
+              test-booleanv-symbolv
+              test-ifv-1
+              test-ifv-2
               test-impliesv-1
               test-impliesv-2
               test-make-equal
@@ -251,7 +438,33 @@
               test-cdrv-1
               test-cdrv-2
               test-appendv-1
-              test-appendv-2)))
+              test-appendv-2
+              test-make-listv
+              test-all-differentv
+              test-set-equalv
+              test-intersectionv-1
+              test-unionv-1
+              test-bag-equalv
+              test-subsetv
+              test-a-subset-ofv
+              test-make-arrayv
+              test-arefv
+              test-mapcarv
+              test-maplistv
+              test-mapv
+              test-everyv
+              test-somev
+              test-noteveryv
+              test-notanyv
+              test-at-leastv
+              test-at-mostv
+              test-exactlyv
+              test-countv
+              test-remove-duplicatesv
+              ;test-constraint-fn
+              test-funcallinv
+              test-formatv)
+            ))
     (when bug?
       (error "Screamer Plus has a bug"))
     t))

@@ -15,7 +15,7 @@
 			  (sol (list peg1 peg2 peg3 peg4))
 			  guess total-correct colour-correct
 			  )
-		(assert! (all-differentv peg1 peg2 peg3 peg4))
+		(assert! (all-differentv (list peg1 peg2 peg3 peg4)))
 		(loop
 		  (setq guess (one-value (solution sol (static-ordering #'linear-force))))
 		  (if (ith-value 1 (solution sol (static-ordering #'linear-force)) nil)

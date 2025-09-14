@@ -69,20 +69,27 @@
     :make-equal
     :carv
     :cdrv
+    :restv
     :consv
     :firstv
     :secondv
     :thirdv
     :fourthv
-    :restv
+    :fifthv
+    :sixthv
+    :seventhv
+    :eighthv
+    :ninthv
+    :tenthv
     :nthv
+    :nthcdrv
     :subseqv
     :lengthv
     :appendv
     :make-listv
-    :all-differentv
     :set-equalv
     :subsetpv
+    :a-subset-ofv
     :intersectionv
     :unionv
     :bag-equalv
@@ -98,10 +105,13 @@
     :funcallinv
     :mapcarv
     :maplistv
+    :mapv
     :everyv
     :somev
     :noteveryv
     :notanyv
+    :countv
+    :remove-duplicatesv
     :at-leastv
     :at-mostv
     :exactlyv

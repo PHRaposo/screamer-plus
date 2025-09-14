@@ -156,14 +156,52 @@ to DEFPACKAGE, and automatically injects two additional options:
 
 (defun reifyv (x)
 "Redesigned from original Screamer-Plus."
+(let ((x (value-of x)))
  (cond ((known?-true x) 1)
        ((known?-false x) 0)
-       (t (let* ((z (an-integer-betweenv 0 1)))
-           (assert!-true (funcallv #'(lambda (v) (if (eq v t) 1 0)) z))
-           z))))
+       (t (funcallv #'(lambda (v) (if (eq v t) 1 0)) x)))))
+
+(defun funcallinv (f inverse &rest el)
+"Redesigned from original Screamer-Plus.
+
+This function returns a variable Z such that (funcallv f EL) = Z and
+(funcallv inverse Z) = EL, if INVERSE is provided. 
+
+If INVERSE is nil, it behaves like funcallv.
+"
+  (let ((z (applyv f (value-of el))))
+   (when inverse (assert! (equalv (value-of el) (list (funcallv inverse z)))))
+    z))
+
+(defun-compile-time constraint-fn (f)
+"Redesigned from original Screamer-Plus, by Simon White.
+
+This function takes a function which works only on bound arguments, and
+returns a similar function which works with either bound arguments or
+arguments which are constraint variables.
+
+If a function already exists with the same name as the supplied function
+appended with the suffix 'v', then this function is returned. Otherwise
+a lambda function is constructed and returned.
+"
+;; needs work: make CONSTRAINT-FN work at compile-time
+  (let ((fn-name (third (multiple-value-list (function-lambda-expression f))))
+        (cfn-name nil))
+    (setf cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
+    (if (and (screamer::valid-function-name? fn-name)
+             (fboundp cfn-name))
+         (symbol-function cfn-name)
+         (function (lambda (&rest args)
+                    (value-of (applyv (value-of f) args)))))))
 
 (defun sumv (listv)
-  (funcallv #'(lambda (lst) (apply #'+ lst)) listv))
+ (let ((x (value-of listv)))
+ (typecase x 
+  (list (if (some #'variable? x)
+            (apply #'+v x)
+            (apply #'+ x)))
+ (screamer::variable (funcallv #'(lambda (lst) (apply #'+ lst)) listv))
+ (otherwise (error "The argument for SUMV must be a list of a LISTV" x)))))
 
 ;; compatibility note
 ;; This section contains or original functions from original Screamer-Plus or
@@ -184,14 +222,9 @@ to DEFPACKAGE, and automatically injects two additional options:
            (quote ,value) ,value)
            (values ,retval))))
 
-(defun constraint-fn (f)
-"Redesigned from original Screamer-Plus."
-  (alexandria:curry (lambda (&rest args)
-                      (value-of (applyv (value-of f) args)))))
-
 (defun members-ofv (x)
 "DEPRECATED. Use remove-duplicatesv instead."
- (remove-duplicatesv x))
+ (remove-duplicatesv x :test #'equal))
 
 (defun not-equalv (x y &key (full-propagation nil))
 "Redesigned from original Screamer-Plus.
@@ -204,12 +237,6 @@ DEPRECATED. Use (notv (equalv ...)) instead."
 (defun funcallgv (f &rest x)
 "DEPRECATED. Use funcallv instead."
  (funcallv f x))
-
-(defun funcallinv (f inverse &rest el)
-"DEPRECATED. Use funcallv instead."
- (declare (ignore inverse))
-  (let* ((z (applyv f el)))
-    z))
 
 (defmacro-compile-time setq-domains (vars vals &aux (res nil))
 "Original from original Screamer-Plus."

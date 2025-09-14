@@ -148,6 +148,42 @@ Otherwise returns the value of X."
                               copy))
       (t x))))
 
+
+(defun deep-value-of (x)
+  "Returns a deep copy of the value of X, dereferencing all variables
+  contained in X."
+  (let ((x (value-of x)))
+    (etypecase x
+      (cons (if (null (cdr (last x)))
+                ;; If terminates with nil (ie normal list)
+                ;; use mapcar to not consume stack
+                (mapcar #'deep-value-of x)
+                ;; Otherwise recurse on the car and cdr
+                (cons (deep-value-of (car x))
+                      (deep-value-of (cdr x)))))
+      (string x)
+      (simple-vector (map 'vector #'deep-value-of x))
+      (sequence (let ((copy (copy-seq x)))
+                  (dotimes (idx (length x))
+                    (setf (elt copy idx)
+                          (deep-value-of (elt x idx))))
+                  copy))
+      (array (let ((arr (alexandria::copy-array x)))
+               (dotimes (idx (array-total-size arr))
+                 (setf (row-major-aref arr idx)
+                       (deep-value-of (row-major-aref arr idx))))
+               arr))
+      (hash-table
+       (let ((x (alexandria::copy-hash-table x)))
+         (maphash (lambda (k v) (setf (gethash k x) (deep-value-of v))) x)
+         x))
+       (standard-object (let ((copy (copy-standard-object x)))
+                              (dolist (slot (slot-names-of x))
+                                (setf (slot-value copy slot)
+                                      (deep-value-of (slot-value x slot))))
+                              copy))
+      (t x))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -42,13 +42,49 @@
 
 (in-package :screamer+)
 
-(defun arefv (array &rest indices)
-  (funcallv #'aref array (car indices)))
+(defun arefv (array &rest subscripts)
+ (let ((array (value-of array))
+       (subscripts (mapcar #'value-of subscripts)))
+ (if (or (variable? array)
+         (some #'variable? subscripts))
+     (applyv #'aref (cons array subscripts))
+     (apply #'aref (cons array subscripts)))))
 
-(defun make-arrayv (dimensions &key (element-type t) (initial-element nil) (initial-contents nil))
-  (apply #'funcallv
-         #'make-array
-         (append (list dimensions)
-                 (when element-type      (list :element-type element-type))
-                 (when initial-element   (list :initial-element initial-element))
-                 (when initial-contents  (list :initial-contents initial-contents)))))
+(defun generate-initial-contents (dimensions variable-generator &optional arguments)
+ (let ((contents '())) 
+ (dotimes (n (car dimensions))
+  (let ((inner-dimension '()))
+   (dotimes (m (second dimensions))
+    (push (third dimensions) inner-dimension))
+  (if arguments
+  (push (n-lists-of-variables (nreverse inner-dimension) variable-generator arguments) contents)
+  (push (n-lists-of-variables (nreverse inner-dimension) variable-generator) contents))))
+ (nreverse contents)))
+
+(defun make-arrayv (dimensions &key element-type
+                                    initial-element
+                                    initial-contents
+                                    adjustable
+                                    fill-pointer
+                                    displaced-to
+                                    displaced-index-offset)
+(let ((dimensions (value-of dimensions)))
+ (if (variable? dimensions)
+     (applyv #'make-array
+            (append (list dimensions)
+                    (when element-type (list :element-type (value-of element-type)))
+                    (when initial-element (list :initial-element (value-of initial-element)))
+                    (when initial-contents (list :initial-contents (value-of initial-contents)))
+                    (when adjustable (list :adjustable (value-of adjustable)))
+                    (when fill-pointer (list :fill-pointer (value-of fill-pointer)))
+                    (when displaced-to (list :displaced-to (value-of displaced-to)))
+                    (when displaced-index-offset (list :displaced-index-offset (value-of displaced-index-offset)))))
+        (apply #'make-array
+            (append (list dimensions)
+                    (when element-type (list :element-type (value-of element-type)))
+                    (when initial-element (list :initial-element (value-of initial-element)))
+                    (when initial-contents (list :initial-contents (value-of initial-contents)))
+                    (when adjustable (list :adjustable (value-of adjustable)))
+                    (when fill-pointer (list :fill-pointer (value-of fill-pointer)))
+                    (when displaced-to (list :displaced-to (value-of displaced-to)))
+                    (when displaced-index-offset (list :displaced-index-offset (value-of displaced-index-offset))))))))
