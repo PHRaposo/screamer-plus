@@ -58,7 +58,7 @@ Test is a deterministic function which returns a boolean value."
     (assert! (set-equalv z x))
     z))
 
-(defun subsetpv (x y &optional (test #'equal))
+(defun subsetpv (x y &key (test #'equal))
 "Original from Screamer-Plus
 This function returns a boolean variable constrained to indicate
 whether x is a subset of y."
@@ -66,7 +66,7 @@ whether x is a subset of y."
        (y (value-of y)))
   (funcallv #'subsetp x y :test test)))
 
-(defun set-equalv (x y &optional (test #'equal))
+(defun set-equalv (x y &key (test #'equal))
   (andv (subsetpv x y :test test) (subsetpv y x :test test)))
 
 (defun bag-equalv (x y &optional (test #'equal))

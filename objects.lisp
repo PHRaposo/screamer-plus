@@ -43,31 +43,82 @@
 (in-package :screamer+)
 
 (defun make-instancev (class &rest initargs)
-  (apply #'funcallv #'make-instance (cons class initargs)))
+ (if (and (bound? class)
+          (every #'bound? initargs))
+      (apply #'make-instance (cons class initargs))
+      (applyv #'make-instance (cons class initargs))))
 
-(defun classpv (obj)
-  (funcallv #'class-of obj))
+(defun classpv (obj name)
+ (if (and (bound? obj)
+          (bound? name))
+      (eq (class-name (class-of (value-of obj))) (value-of name))
+      (let ((z (a-booleanv)))
+        (assert! (eqv z (equalv (funcallv #'(lambda(x)
+                                            (class-name (class-of x))) (value-of obj))
+                                (value-of name))))
+        z)))
 
 (defun class-namev (obj)
-  (funcallv (lambda (x)
-   (apply #'class-name (list (class-of x)))) obj))
+"Original from Screamer Plus, by Simon White.
+Constrains a variable to be the class name of a class
+Note that given an object instance, you need first to 
+retrieve its class using class-ofv, and then its name."
+ (if (bound? obj)
+     (class-name (value-of obj))
+   (let ((obj (screamer::variablize obj))
+         (z (make-variable)))
+      (screamer::attach-noticer!
+       #'(lambda()
+           (when (and (not (bound? obj))
+                      (screamer::enumerated-domain-p obj) )
+              (assert! (memberv z (mapcar #'class-name (variable-enumerated-domain obj)))))
+           (when (bound? obj)
+              (make-equal z (class-name (value-of obj)))))
+       obj)
+    z)))
 
-  (defun class-ofv (obj)
-    (funcallv (lambda (x)
-                 (apply #'class-of (list (value-of x)))) obj))
+(defun class-ofv (obj)
+"Original from Screamer Plus, by Simon White.
+Constrains a variable to be the class of an object"
+ (if (bound? obj)
+     (class-of (value-of obj))
+   (let ((obj (screamer::variablize obj))
+         (z (make-variable)))
+      (screamer::attach-noticer!
+       #'(lambda()
+           (when (and (not (bound? obj))
+                      (screamer::enumerated-domain-p obj) )
+              (assert! (memberv z (mapcar #'class-of (variable-enumerated-domain obj)))))
+           (when (bound? obj)
+              (make-equal z (class-of (value-of obj)))))
+       obj)
+    z)))
 
 (defun slot-exists-pv (obj slotname)
-  (funcallv (lambda (x)
-               (apply #'slot-exists-p (list (value-of x) (value-of slotname)))) obj))
-
-(defun slot-names-ofv (obj)
-  (funcallv #'slot-names-of obj))
-
-(defun slot-boundpv (obj slotname)
-  (funcallv #'slot-boundp obj slotname))
+ (if (and (bound? obj)
+          (bound? slotname))
+     (slot-exists-p (value-of obj) (value-of slotname))
+    (funcallv #'slot-exists-p (value-of obj) (value-of slotname))))
 
 (defun slot-valuev (objvar slotname)
- (funcallv #'slot-value objvar slotname))
+  (if (and (bound? objvar)
+           (bound? slotname))
+      (slot-value (value-of objvar) (value-of slotname))
+      (funcallv #'slot-value objvar slotname)))
+
+;; IN PROGRESS
+;; note: the following functions was not tested yet
+
+(defun slot-names-ofv (obj)
+ (if (bound? obj)
+     (slot-names-of (value-of obj))
+     (funcallv #'slot-names-of obj)))
+
+(defun slot-boundpv (obj slotname)
+ (if (and (bound? obj)
+          (bound? slotname))
+     (slot-boundp (value-of obj) (value-of slotname))
+     (funcallv #'slot-boundp (value-of obj) (value-of slotname))))
 
 (defun reconcile-objectsv (objvar1 objvar2)
   (let ((slots1 (slot-names-ofv objvar1))

@@ -80,8 +80,8 @@
     (equal '((T => T IS T) (T => NIL IS NIL) (NIL => T IS T) (NIL => NIL IS T))
      (all-values (solution (list p '=> q 'is r) (static-ordering #'linear-force))))))
 
-;; note: the MY-MEMBERV function from original Screamer-Plus doesn't work
-;; in this version. 
+;; note: the MY-MEMBERV function from original Screamer Plus doesn't work
+;; in this version because it relies on the old IFV function. 
 
 (defun test-make-equal ()
   (let ((x (make-variable)))
@@ -217,7 +217,7 @@
                   (equalv (secondv z) 'foo)))))
 
 (defun test-all-differentv ()
- ;;note: this is currently a lifted function from Screamer 4.0.1. 
+ ;; note: this is currently a lifted function from Screamer 4.0.1. 
  (let ((variables (n-variables 3 'a-member-ofv '(0 1 2))))
   (assert! (all-differentv variables))
   (equal-set? '((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))
@@ -283,19 +283,77 @@
   (assert! (=v y 1))
   (known? (equalv 'Q val))))
 
-;; TEST-MAKE-INSTANCEV
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; TODO
+;;
+#|
+(defclass junk ()
+ ((top :initarg :top)
+  (bottom :initarg :bottom)))
 
-;; TEST-SLOT-VALUEV
+(defclass jenk ()
+ ((top :initarg :top)
+  (bottom :initarg :bottom)))
 
-;; TEST-CLASSPV
+(defun test-make-instancev ()
+(let* ((classv (a-member-ofv '(junk jenk)))
+      (slotv-1 (an-integer-betweenv 0 2))
+      (slotv-2 (an-integer-betweenv 0 2))
+      (instancev (make-instancev classv :top slotv-1 :bottom slotv-2)))
+  (known? (andv (memberv classv '(junk jenk))
+                (memberv (slot-valuev instancev 'top) '(0 1 2))
+                (memberv (slot-valuev instancev 'bottom) '(0 1 2))))))
 
-;; TEST-CLASS-OFV
+ (defclass person ()
+ ((name :accessor name :initarg :name)))
 
-;; TEST-CLASS-NAMEV
+(defun test-slot-valuev ()
+ (let* ((anon (make-instance 'person :name (make-variable)))
+        (name-of-anon (slot-valuev anon 'name)))
+  (make-equal name-of-anon "Fred Bloggs")
+  (known? (equalv (slot-valuev anon 'name) "Fred Bloggs"))))
 
-;; TEST-SLOT-EXIST-PV
+(defun test-classpv.1 ()
+ (let* ((x (make-variable))
+        (z (classpv x 'junk)))
+  (make-equal x (make-instance 'junk))
+  (known?-true z)))
 
-;; TEST-RECONCILE
+(defun test-classpv.2 ()
+ (let ((x (a-member-ofv (list 1 'hello (make-instance 'junk) nil "hello"))))
+  (assert! (notv (classpv x 'junk)))
+  (equal-set? '("hello" NIL HELLO 1)
+   (all-values (solution x (static-ordering #'linear-force))))))
+
+(defun test-class-ofv ()
+ (let* ((x (make-variable))
+        (z (class-ofv x)))
+   (make-equal x (make-instance 'junk))
+   z))
+
+(defclass foo () ())
+
+(defclass bar () ())
+
+(defun test-class-namev ()
+ (let* ((x (make-variable))
+        (name (class-namev (class-ofv x))))
+(assert! (memberv x (list (make-instance 'foo)
+                          (make-instance 'bar))))
+(known? (memberv name '(FOO BAR)))))
+
+(defclass house () (number))
+
+(defun test-slot-exists-pv ()
+(let* ((x (a-member-ofv (list (make-instance 'house)
+                              (make-instance 'person)))))
+ (assert! (slot-exists-pv x 'name))
+ (known? (equalv (class-namev (class-ofv x)) 'person))))
+
+|#
+;; TODO: test-reconcile
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun test-mapcarv ()
 (let* ((a (a-listv))
@@ -311,19 +369,39 @@
   (make-equal a '(1 2 3 4))
   (known? (equalv b '((HEAD 1 2 3 4) (HEAD 2 3 4) (HEAD 3 4) (HEAD 4))))))
 
-(defun test-mapv ()
+(defun test-mapv.1 ()
+;; note: since X is a VECTOR containing two VARIABLES, there is no need
+;; to use MAPV. CL MAP can be used instead.
  (let ((x (vector (an-integer-betweenv 0 5) (an-integer-betweenv 0 5))))
-  (assert! (apply #'andv (mapv 'list (lambda (el) (<=v el 3)) x)))
+  (assert! (apply #'andv (map 'list (lambda (el) (<=v el 3)) x)))
   (known? (andv (<=v (arefv x 0) 3)
                 (<=v (arefv x 1) 3)))))
 
-(defun test-everyv ()
+(defun test-mapv.2 ()
+ (let* ((x (funcallv #'vector (an-integer-betweenv 0 5)
+                              (an-integer-betweenv 0 5)))
+        (map (mapv 'vector #'(lambda (el) (<= el 3)) x)))
+  (assert! (funcallv #'every #'identity map))
+ (known? (andv (memberv x '(#(3 3) #(2 3) #(1 3) #(0 3)
+                            #(3 2) #(2 2) #(1 2) #(0 2)
+                            #(3 1) #(2 1) #(1 1) #(0 1)
+                            #(3 0) #(2 0) #(1 0) #(0 0)))
+                (equalv map #(T T))))))
+
+(defun test-everyv.1 ()
+;; note: since X is a LIST, we can use
+;; (ASSERT! (APPLY #'ANDV (MAPCAR #'INTEGERPV X))).
  (let ((x (make-listv 4)))
-   (assert! (everyv #'integerpv x))
-    (known? (andv (integerpv (firstv x))
-                  (integerpv (secondv x))
-                  (integerpv (thirdv x))
-                  (integerpv (fourthv x))))))
+   (assert! (apply #'andv (mapcar #'integerpv x)))
+    (known? (andv (integerpv (first x))
+                  (integerpv (second x))
+                  (integerpv (third x))
+                  (integerpv (fourth x))))))
+
+(defun test-everyv.2 ()
+ (let ((x (a-member-ofv '((0 1) (0 2) (0 3) (1 2) (1 3) (2 3) (3 3)))))
+   (assert! (everyv (lambda (el) (>= el 3)) x))
+   (known? (equalv x '(3 3)))))
 
 (defun test-somev ()
  (let ((x (a-member-ofv '("abc" "def" "ghi"))))
@@ -374,17 +452,6 @@
  (assert! (equalv no-duplicates '(1)))
  (known? (equalv variables '(1 1 1 1 1 1 1 1 1 1)))))
 
-;; needs work: make CONSTRAINT-FN work at compile-time
-;(defun test-constraint-fn ()
-;  (let ((x (make-variable))
-;        (y (make-variable)))
-;    (assert! (andv (funcall (constraint-fn #'integerp) x)
-;                   (funcall (constraint-fn #'integerp) y)
-;                   (funcall (constraint-fn #'=) x y)
-;                   (funcall (constraint-fn #'=) x 3)))
-;    (known? (andv (=v x 3)
-;                  (=v y 3)))))
-
 (defun test-funcallinv ()
  (let* ((a (make-variable))
         (b (funcallinv #'reverse #'reverse a)))
@@ -399,7 +466,7 @@
    (make-equal y 'world)
    (known? (equalv z "*** HELLO WORLD ***"))))
 
-(defun prime-ordeal-plus ()
+(cl::defun prime-ordeal-plus ()
   (let ((bug? nil))
     (flet ((run-test (fn)
             (let ((result
@@ -449,10 +516,19 @@
               test-a-subset-ofv
               test-make-arrayv
               test-arefv
+              ;test-make-instancev
+              ;test-slot-valuev
+              ;test-classpv.1
+              ;test-classpv.2
+              ;test-class-ofv
+              ;test-class-namev
+              ;test-slot-exists-pv
               test-mapcarv
               test-maplistv
-              test-mapv
-              test-everyv
+              test-mapv.1
+              test-mapv.2
+              test-everyv.1
+              test-everyv.2
               test-somev
               test-noteveryv
               test-notanyv
@@ -461,7 +537,6 @@
               test-exactlyv
               test-countv
               test-remove-duplicatesv
-              ;test-constraint-fn
               test-funcallinv
               test-formatv)
             ))

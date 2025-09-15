@@ -173,26 +173,24 @@ If INVERSE is nil, it behaves like funcallv.
    (when inverse (assert! (equalv (value-of el) (list (funcallv inverse z)))))
     z))
 
-(defun-compile-time constraint-fn (f)
+(defun constraint-fn (f)                      
+;; needs work: make CONSTRAINT-FN work at compile-time
 "Redesigned from original Screamer-Plus, by Simon White.
-
 This function takes a function which works only on bound arguments, and
 returns a similar function which works with either bound arguments or
 arguments which are constraint variables.
-
 If a function already exists with the same name as the supplied function
 appended with the suffix 'v', then this function is returned. Otherwise
 a lambda function is constructed and returned.
 "
-;; needs work: make CONSTRAINT-FN work at compile-time
-  (let ((fn-name (third (multiple-value-list (function-lambda-expression f))))
+ (let ((fn-name (third (multiple-value-list (function-lambda-expression f))))
         (cfn-name nil))
     (setf cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
     (if (and (screamer::valid-function-name? fn-name)
              (fboundp cfn-name))
          (symbol-function cfn-name)
-         (function (lambda (&rest args)
-                    (value-of (applyv (value-of f) args)))))))
+         (alexandria::curry (lambda (&rest args)
+                             (value-of (applyv (value-of f) args)))))))
 
 (defun sumv (listv)
  (let ((x (value-of listv)))

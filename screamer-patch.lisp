@@ -53,8 +53,6 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
 
  #+allegro (setq excl:*redefinition-warnings* (remove :operator excl:*redefinition-warnings*))
 
- #+sbcl (setq sb-ext:*redefinition-warnings* nil)
-
  #+lispworks (setf lw::*handle-warn-on-redefinition* :nil) 
 
  #+ccl (setq ccl:*warn-if-redefine* nil))
@@ -78,8 +76,32 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
   (let* ((class (class-of obj))
          (copy (make-instance class)))
     (dolist (slot (slot-names-of obj))
-      (setf (slot-value copy slot) (slot-value obj slot)))
+     (when (slot-boundp obj slot)
+      (setf (slot-value copy slot) (slot-value obj slot))))
     copy))
+
+(defun standard-object-equal (x y)
+  (and (typep y (class-of x))
+       (every (lambda (slot)
+                (let ((xv (and (slot-boundp x slot) (slot-value x slot)))
+                      (yv (and (slot-boundp y slot) (slot-value y slot))))
+                  (equalv xv yv)))
+              (slot-names-of x))))
+
+(defun generic-equal (x y)
+;; note: Should find a better name for this.
+  "Compares two objects for equality considering their types and structures."
+ (the boolean
+  (typecase x
+    (vector      (and (vectorp y) (equalp x y)))
+    (array       (and (arrayp y) (equalp x y)))
+    (cons        (and (consp y) (equal x y)))
+    (string      (and (stringp y) (string= x y)))
+    (hash-table  (and (hash-table-p y) (equalp x y)))
+    (number      (and (numberp y) (eql x y)))
+    (symbol      (and (symbolp y) (eq x y)))
+    (standard-object (standard-object-equal x y))
+    (t           (eql x y)))))
 
  (defun variables-in (x)
   (the list
@@ -107,8 +129,9 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
                        coll))
          (standard-object (let (coll)
                            (dolist (slot (slot-names-of x))
-                            (alexandria:appendf coll (variables-in (slot-value x slot))))
-                            coll))
+                            (when (slot-boundp x slot)
+                               (alexandria:appendf coll (variables-in (slot-value x slot)))))
+                           coll))
          (variable (list x))
          (otherwise nil)))))
 
@@ -143,44 +166,9 @@ Otherwise returns the value of X."
          x))
        (standard-object (let ((copy (copy-standard-object x)))
                               (dolist (slot (slot-names-of x))
-                                (setf (slot-value copy slot)
-                                      (apply-substitution (slot-value x slot))))
-                              copy))
-      (t x))))
-
-
-(defun deep-value-of (x)
-  "Returns a deep copy of the value of X, dereferencing all variables
-  contained in X."
-  (let ((x (value-of x)))
-    (etypecase x
-      (cons (if (null (cdr (last x)))
-                ;; If terminates with nil (ie normal list)
-                ;; use mapcar to not consume stack
-                (mapcar #'deep-value-of x)
-                ;; Otherwise recurse on the car and cdr
-                (cons (deep-value-of (car x))
-                      (deep-value-of (cdr x)))))
-      (string x)
-      (simple-vector (map 'vector #'deep-value-of x))
-      (sequence (let ((copy (copy-seq x)))
-                  (dotimes (idx (length x))
-                    (setf (elt copy idx)
-                          (deep-value-of (elt x idx))))
-                  copy))
-      (array (let ((arr (alexandria::copy-array x)))
-               (dotimes (idx (array-total-size arr))
-                 (setf (row-major-aref arr idx)
-                       (deep-value-of (row-major-aref arr idx))))
-               arr))
-      (hash-table
-       (let ((x (alexandria::copy-hash-table x)))
-         (maphash (lambda (k v) (setf (gethash k x) (deep-value-of v))) x)
-         x))
-       (standard-object (let ((copy (copy-standard-object x)))
-                              (dolist (slot (slot-names-of x))
-                                (setf (slot-value copy slot)
-                                      (deep-value-of (slot-value x slot))))
+                                (when (slot-boundp x slot)
+                                    (setf (slot-value copy slot)
+                                          (apply-substitution (slot-value x slot)))))
                               copy))
       (t x))))
 

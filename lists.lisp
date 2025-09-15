@@ -288,7 +288,7 @@
     z))
 
 (defun at-mostv (n fn sequence &rest more-sequences)
-  (let ((sequence (value-of sequence))
+  (let* ((sequence (value-of sequence))
         (more-sequences (mapcar #'value-of more-sequences))
         (z (a-booleanv)) 
         (count-trues (sumv (mapcarv #'reifyv (apply #'mapv (list* 'list fn sequence more-sequences))))))
@@ -297,8 +297,8 @@
     (assert!-true z)    
     z))
 
-(defun at-leastv (n fn sequence  &rest more-sequences)
-  (let ((sequence (value-of sequence))
+(defun at-leastv (n fn sequence &rest more-sequences)
+  (let* ((sequence (value-of sequence))
         (more-sequences (mapcar #'value-of more-sequences))
         (z (a-booleanv)) 
         (count-trues (sumv (mapcarv #'reifyv (apply #'mapv (list* 'list fn sequence more-sequences))))))
@@ -307,8 +307,8 @@
     (assert!-true z)
     z))
 
-(defun exactlyv (n fn sequence  &rest more-sequences)
-  (let ((sequence (value-of sequence))
+(defun exactlyv (n fn sequence &rest more-sequences)
+  (let* ((sequence (value-of sequence))
         (more-sequences (mapcar #'value-of more-sequences))
         (z (a-booleanv)) 
         (count-trues (sumv (mapcarv #'reifyv (apply #'mapv (list* 'list fn sequence more-sequences))))))

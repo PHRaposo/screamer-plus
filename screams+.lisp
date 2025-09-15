@@ -107,7 +107,7 @@
 	 ((endp sub) t)
   (assert!
    (at-mostv maxnum-in-sub
-			(constraint-fn #'(lambda (x) (slot-value x which-option))) s))))
+            (constraint-fn #'(lambda (x) (slot-value x which-option))) s))))
 
 (defun count-numbers (car-dist which-option)
  (do* ((count 0)
