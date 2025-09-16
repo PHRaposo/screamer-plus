@@ -105,18 +105,58 @@ to DEFPACKAGE, and automatically injects two additional options:
        nil)))
 
 (defmacro-compile-time ifv (condition then &optional else)
-  "Redesigned from original Screamer-Plus."
+  "If CONDITION is KNOWN? to be NOT EQUAL NIL, THEN is returned. Note that the
+ value of CONDITION does not need to be a BOOLEAN.
+
+  If CONDITION is KNOWN? to be false, ELSE is returned.
+
+  Otherwise returns a variable Z which is constrained to be the value of THEN
+  if CONDITION later becomes bound to not NIL, or the value of ELSE if CONDITION
+  later becomes bound to NIL.
+
+  All arguments (CONDITION THEN ELSE) are evaluated at runtime, so recursive calls
+  can cause infinite loops."
   (let ((g-cond (gensym "COND"))
         (g-then (gensym "THEN"))
         (g-else (gensym "ELSE")))
     `(let ((,g-cond ,condition)
            (,g-then ,then)
            (,g-else ,else))
-       (cond ((known?-true ,g-cond) ,then)
-             ((known?-false ,g-cond) ,else)
+       (cond ((known? (notv (equalv ,g-cond nil))) (value-of ,g-then))
+             ((known?-false ,g-cond) (value-of ,g-else))
              (t (funcallv (lambda (cond then else)
                             (if cond then else))
                           ,g-cond ,g-then ,g-else))))))
+
+(defmacro-compile-time ifv-rec (condition then &optional else)
+ "Redesigned from original Screamer-Plus.
+
+ This version keeps the semantics of original IFV and allows recursive calls.
+ 
+ If condition is BOUND? and not NIL, a variable Z is returned which is
+ constrained to be the value of THEN.
+ 
+ If CONDITION is BOUND? and NIL, Z is constrained to be the value of ELSE.
+ 
+ If CONDITION is not BOUND?, a variable Z is returned which is constrained
+ to be the value of THEN if CONDITION later becomes bound to not NIL, or
+ the value of ELSE if CONDITION later becomes bound to NIL.
+ "
+  (let ((gcond (gensym "COND"))
+        (z (gensym "Z")))
+    `(let ((,gcond ,condition))
+      (if (known? (notv (equalv ,gcond nil)))
+          ,then
+          (let ((,z (make-variable)))
+            (attach-noticer!
+             #'(lambda ()
+                (when (deep-bound? ,gcond)
+                 (assert!-equalv ,z (funcallv (lambda (condition then else)
+                                               (if condition then else))
+                                                ,gcond ,then ,else))))
+              ,gcond)
+             (attach-noticer! #'(lambda nil ) ,z :dependencies (list ,gcond))
+            ,z)))))
 
  (defmacro-compile-time condv (&rest clauses)
   "Screamer version of Common LISP COND macro."

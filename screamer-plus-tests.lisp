@@ -46,8 +46,7 @@
 ;; note: the functions TYPEPV and A-TYPED-VARV were removed from this version.
 ;; The new should be defined using screamer-define-type macro and screamer-define-generator-function.
 
-;; note: The current IFV version does not handle recursive constraint definitions,
-;;       like the original version from Screamer-Plus did.
+;; note: This version of IFV does not allow recursive calls. 
 
 (defun test-ifv-1 ()
  (let* ((x (a-member-ofv '(1 two "THREE" (four))))
@@ -80,8 +79,18 @@
     (equal '((T => T IS T) (T => NIL IS NIL) (NIL => T IS T) (NIL => NIL IS T))
      (all-values (solution (list p '=> q 'is r) (static-ordering #'linear-force))))))
 
-;; note: the MY-MEMBERV function from original Screamer Plus doesn't work
-;; in this version because it relies on the old IFV function. 
+;; note: this version of MY-MEMBERV uses IFV-REC, which does not allow recursive calls.
+(defun my-memberv (m ll)
+ (when ll
+     (ifv-rec (equalv m (carv ll))
+      t
+     (my-memberv m (cdrv ll)))))
+
+(defun test-my-memberv-ifv-rec ()
+ (let* ((x (make-variable))
+       (z (my-memberv 1 x)))
+   (make-equal x '(3 2 1))
+   (known?-true z)))
 
 (defun test-make-equal ()
   (let ((x (make-variable)))
@@ -283,10 +292,6 @@
   (assert! (=v y 1))
   (known? (equalv 'Q val))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; TODO
-;;
-#|
 (defclass junk ()
  ((top :initarg :top)
   (bottom :initarg :bottom)))
@@ -297,12 +302,12 @@
 
 (defun test-make-instancev ()
 (let* ((classv (a-member-ofv '(junk jenk)))
-      (slotv-1 (an-integer-betweenv 0 2))
-      (slotv-2 (an-integer-betweenv 0 2))
-      (instancev (make-instancev classv :top slotv-1 :bottom slotv-2)))
-  (known? (andv (memberv classv '(junk jenk))
-                (memberv (slot-valuev instancev 'top) '(0 1 2))
-                (memberv (slot-valuev instancev 'bottom) '(0 1 2))))))
+       (slotv-1 (an-integer-betweenv 0 2))
+       (slotv-2 (an-integer-betweenv 0 2))
+       (instancev (make-instancev classv :top slotv-1 :bottom slotv-2)))
+ (known? (andv (memberv classv '(junk jenk))
+               (memberv (slot-valuev instancev 'top) '(0 1 2))
+               (memberv (slot-valuev instancev 'bottom) '(0 1 2))))))
 
  (defclass person ()
  ((name :accessor name :initarg :name)))
@@ -329,7 +334,7 @@
  (let* ((x (make-variable))
         (z (class-ofv x)))
    (make-equal x (make-instance 'junk))
-   z))
+   (known? (equalv (class-namev z) 'JUNK))))
 
 (defclass foo () ())
 
@@ -344,16 +349,15 @@
 
 (defclass house () (number))
 
+#-ccl
+;; needs work in CCL
 (defun test-slot-exists-pv ()
 (let* ((x (a-member-ofv (list (make-instance 'house)
                               (make-instance 'person)))))
  (assert! (slot-exists-pv x 'name))
  (known? (equalv (class-namev (class-ofv x)) 'person))))
 
-|#
 ;; TODO: test-reconcile
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun test-mapcarv ()
 (let* ((a (a-listv))
@@ -466,6 +470,7 @@
    (make-equal y 'world)
    (known? (equalv z "*** HELLO WORLD ***"))))
 
+#-ccl
 (cl::defun prime-ordeal-plus ()
   (let ((bug? nil))
     (flet ((run-test (fn)
@@ -490,6 +495,7 @@
               test-ifv-2
               test-impliesv-1
               test-impliesv-2
+              test-my-memberv-ifv-rec
               test-make-equal
               test-condv
               test-firstv
@@ -516,12 +522,92 @@
               test-a-subset-ofv
               test-make-arrayv
               test-arefv
-              ;test-make-instancev
-              ;test-slot-valuev
-              ;test-classpv.1
-              ;test-classpv.2
-              ;test-class-ofv
-              ;test-class-namev
+              test-make-instancev
+              test-slot-valuev
+              test-classpv.1
+              test-classpv.2
+              test-class-ofv
+              test-class-namev
+              test-slot-exists-pv
+              test-mapcarv
+              test-maplistv
+              test-mapv.1
+              test-mapv.2
+              test-everyv.1
+              test-everyv.2
+              test-somev
+              test-noteveryv
+              test-notanyv
+              test-at-leastv
+              test-at-mostv
+              test-exactlyv
+              test-countv
+              test-remove-duplicatesv
+              test-funcallinv
+              test-formatv)
+            ))
+    (when bug?
+      (error "Screamer Plus has a bug"))
+    t))
+
+#+ccl
+(cl::defun prime-ordeal-plus ()
+  (let ((bug? nil))
+    (flet ((run-test (fn)
+            (let ((result
+                    (handler-case
+                        (funcall fn)
+                      (error (e)
+                        (format t "Error in ~A: ~A~%" fn e)
+                        nil))))
+              (unless result
+                (format t "~%Test failed: ~A~%" fn)
+                (setf bug? t)))))
+      (mapc #'run-test
+            '(test-listpv
+              test-stringpv
+              test-symbolpv
+              test-listv
+              test-stringv
+              test-symbolv
+              test-booleanv-symbolv
+              test-ifv-1
+              test-ifv-2
+              test-impliesv-1
+              test-impliesv-2
+              test-my-memberv-ifv-rec
+              test-make-equal
+              test-condv
+              test-firstv
+              test-nthv-1
+              test-nthv-2
+              test-subseqv-1
+              test-subseqv-2
+              test-lengthv
+              test-consv-1
+              test-consv-2
+              test-carv-1
+              test-carv-2
+              test-cdrv-1
+              test-cdrv-2
+              test-appendv-1
+              test-appendv-2
+              test-make-listv
+              test-all-differentv
+              test-set-equalv
+              test-intersectionv-1
+              test-unionv-1
+              test-bag-equalv
+              test-subsetv
+              test-a-subset-ofv
+              test-make-arrayv
+              test-arefv
+              test-make-instancev
+              test-slot-valuev
+              test-classpv.1
+              test-classpv.2
+              test-class-ofv
+              test-class-namev
               ;test-slot-exists-pv
               test-mapcarv
               test-maplistv

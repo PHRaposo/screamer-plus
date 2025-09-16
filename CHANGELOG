@@ -63,5 +63,16 @@
 ;;; 05/09/2025       Full redesign of the library based on Screamer 4.0.1 and update of the terms
 ;;;                  of use and license. 
 ;;;
+;;; 16/09/2025       New file "screamer-plus-tests.lisp" with tests from screamer-plus.pdf.
+;;;                  Documentation of main differences.
+;;;
+;;;                  Added slot-equal to avoid infinite loops. Included both IFV and IFV-REC. 
+;;;                  Added new tests for MY-MEMBERV (from original documentation).
+;;;
+;;;                 Tested on the following LISP implementations:
+;;;                  - SBCL 2.5.8
+;;;                  - Allegro Common LISP 11.0
+;;;                  - LispWorks 8.0.1
+;;;                  - Clozure Common LISP 1.13 (SLOT-EXISTS-PV is not working) 
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

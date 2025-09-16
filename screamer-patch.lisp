@@ -53,6 +53,8 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
 
  #+allegro (setq excl:*redefinition-warnings* (remove :operator excl:*redefinition-warnings*))
 
+#+sbcl (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
+
  #+lispworks (setf lw::*handle-warn-on-redefinition* :nil) 
 
  #+ccl (setq ccl:*warn-if-redefine* nil))
@@ -65,8 +67,6 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
   "Determines whether a variable is a standard CLOS object or not"
   (typep var 'standard-object))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (declaim (inline slot-names-of)))
 (defun-compile-time slot-names-of (obj)
   (mapcar #'closer-mop:slot-definition-name
           (closer-mop:class-slots (class-of obj))))
@@ -80,12 +80,28 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
       (setf (slot-value copy slot) (slot-value obj slot))))
     copy))
 
+(defun slot-equal (x y slot)
+ (the boolean
+  (let ((xb (slot-boundp x slot))
+        (yb (slot-boundp y slot)))
+    (cond ((and (not xb) (not yb)) t)
+          ((not (eql xb yb)) nil)
+          (t (let ((x (value-of (slot-value x slot)))
+                   (y (value-of (slot-value y slot))))
+              (typecase x
+                (vector      (and (vectorp y) (equalp x y)))
+                (array       (and (arrayp y) (equalp x y)))
+                (cons        (and (consp y) (equal x y)))
+                (string      (and (stringp y) (string= x y)))
+                (hash-table  (and (hash-table-p y) (equalp x y)))
+                (number      (and (numberp y) (eql x y)))
+                (symbol      (and (symbolp y) (eq x y)))
+                (t (eql x y)))))))))
+
 (defun standard-object-equal (x y)
   (and (typep y (class-of x))
        (every (lambda (slot)
-                (let ((xv (and (slot-boundp x slot) (slot-value x slot)))
-                      (yv (and (slot-boundp y slot) (slot-value y slot))))
-                  (equalv xv yv)))
+               (slot-equal x y slot))
               (slot-names-of x))))
 
 (defun generic-equal (x y)

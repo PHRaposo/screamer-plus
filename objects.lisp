@@ -42,11 +42,42 @@
 
 (in-package :screamer+)
 
+(defun slot-valuev (objvar slotname)
+  (if (and (bound? objvar)
+           (bound? slotname))
+      (slot-value (value-of objvar) (value-of slotname))
+      (funcallv #'slot-value objvar slotname)))
+
+(defun collect-slot-arg-pairs (initargs)
+  (let ((pairs '()))
+    (do ((lst initargs (cddr lst)))
+        ((or (endp lst) (endp (cdr lst))) (nreverse pairs))
+      (let* ((slot-key (first lst))
+             (arg (second lst)))
+        (push (cons slot-key arg) pairs)))))
+
 (defun make-instancev (class &rest initargs)
  (if (and (bound? class)
           (every #'bound? initargs))
       (apply #'make-instance (cons class initargs))
-      (applyv #'make-instance (cons class initargs))))
+      (let ((z (applyv #'make-instance (cons class initargs)))
+            (slot-arg-pairs (collect-slot-arg-pairs initargs)))
+       (attach-noticer!
+        #'(lambda()
+         (when (bound? z) 
+          (dolist (pair slot-arg-pairs)
+           (let* ((obj (value-of z))
+                  (class (class-of obj))
+                  (slot-key (car pair))
+                  (slot-name (if (keywordp slot-key)
+                                  (intern (symbol-name slot-key) (symbol-package (class-name class)))
+                                  slot-key))
+                  (slot-def (find slot-name (closer-mop:class-slots class)
+                                  :key #'closer-mop:slot-definition-name)))
+              (when slot-def
+                (assert! (equalv (cdr pair) (slot-value obj slot-name))))))))
+         z)
+       z)))
 
 (defun classpv (obj name)
  (if (and (bound? obj)
@@ -59,52 +90,60 @@
         z)))
 
 (defun class-namev (obj)
-"Original from Screamer Plus, by Simon White.
-Constrains a variable to be the class name of a class
-Note that given an object instance, you need first to 
-retrieve its class using class-ofv, and then its name."
+"Redesigned from original Screamer Plus, by Simon White.
+
+If OBJ is bound, returns its class name.
+
+If OBJ is unbound, returns a variable that will be constrained
+to the class name of OBJ once it becomes bound."
  (if (bound? obj)
      (class-name (value-of obj))
-   (let ((obj (screamer::variablize obj))
-         (z (make-variable)))
-      (screamer::attach-noticer!
+      (let ((z (make-variable)))  
+      (attach-noticer!
        #'(lambda()
            (when (and (not (bound? obj))
-                      (screamer::enumerated-domain-p obj) )
-              (assert! (memberv z (mapcar #'class-name (variable-enumerated-domain obj)))))
+                      (screamer::enumerated-domain-p obj))
+              (assert! (memberv
+                        z
+                       (mapcar #'(lambda (x)
+                              (and (objectp x) (class-name x)))
+                       (variable-enumerated-domain obj)))))
            (when (bound? obj)
               (make-equal z (class-name (value-of obj)))))
-       obj)
-    z)))
+       obj) 
+      z)))
 
 (defun class-ofv (obj)
-"Original from Screamer Plus, by Simon White.
-Constrains a variable to be the class of an object"
+"Redesigned from original Screamer Plus, by Simon White.
+
+If OBJ is bound, returns its class.
+
+If OBJ is unbound, returns a variable that will be constrained
+to the class of OBJ once it becomes bound."
  (if (bound? obj)
      (class-of (value-of obj))
-   (let ((obj (screamer::variablize obj))
-         (z (make-variable)))
-      (screamer::attach-noticer!
+      (let ((z (make-variable)))  
+      (attach-noticer!
        #'(lambda()
            (when (and (not (bound? obj))
-                      (screamer::enumerated-domain-p obj) )
-              (assert! (memberv z (mapcar #'class-of (variable-enumerated-domain obj)))))
+                      (screamer::enumerated-domain-p obj))
+              (assert! (memberv
+                        z
+                       (mapcar #'(lambda (x)
+                              (and (objectp x) (class-of x)))
+                       (variable-enumerated-domain obj)))))
            (when (bound? obj)
               (make-equal z (class-of (value-of obj)))))
-       obj)
-    z)))
+       obj) 
+      z)))
 
+#-ccl
+;; needs work in CCL
 (defun slot-exists-pv (obj slotname)
  (if (and (bound? obj)
           (bound? slotname))
      (slot-exists-p (value-of obj) (value-of slotname))
     (funcallv #'slot-exists-p (value-of obj) (value-of slotname))))
-
-(defun slot-valuev (objvar slotname)
-  (if (and (bound? objvar)
-           (bound? slotname))
-      (slot-value (value-of objvar) (value-of slotname))
-      (funcallv #'slot-value objvar slotname)))
 
 ;; IN PROGRESS
 ;; note: the following functions was not tested yet
