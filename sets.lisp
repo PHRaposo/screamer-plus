@@ -62,12 +62,16 @@ Test is a deterministic function which returns a boolean value."
 "Original from Screamer-Plus
 This function returns a boolean variable constrained to indicate
 whether x is a subset of y."
- (let ((x (value-of x))
-       (y (value-of y)))
-  (funcallv #'subsetp x y :test test)))
+ (let* ((x (value-of x))
+        (y (value-of y))
+        (z (funcallv #'subsetp x y :test test)))
+    z))
 
 (defun set-equalv (x y &key (test #'equal))
-  (andv (subsetpv x y :test test) (subsetpv y x :test test)))
+  (let ((z (a-booleanv)))
+   (assert! (eqv z (andv (subsetpv x y :test test)
+                         (subsetpv y x :test test))))
+   z))
 
 (defun bag-equalv (x y &optional (test #'equal))
   "Returns a variable constrained to indicate whether the bags x and y are equal."
@@ -88,23 +92,36 @@ whether x is a subset of y."
           z)
          (t (attach-noticer! 
              #'(lambda ()
-                (when (deep-bound? x)
+                (when (and (deep-bound? x)
+                           (<= (domain-size x) *maximum-list-domain-size*))
                  (assert! (memberv z (all-values (a-subset-of (apply-substitution x)))))))
                x)
             z))))
 
 (defun intersectionv (list1 list2 &key key test test-not)
-  (apply #'funcallv
-         #'intersection
-         (append (list list1 list2)
+  (if (and (deep-bound? list1) (deep-bound? list2))
+      (apply #'intersection (append (list list1 list2)
                  (when key      (list :key key))
                  (when test     (list :test test))
-                 (when test-not (list :test-not test-not)))))
+                 (when test-not (list :test-not test-not))))
+      (let ((z (apply #'funcallv
+                      #'intersection
+                      (append (list list1 list2)
+                              (when key      (list :key key))
+                              (when test     (list :test test))
+                              (when test-not (list :test-not test-not))))))
+        z)))
 
 (defun unionv (list1 list2 &key key test test-not)
-  (apply #'funcallv
-         #'union
-         (append (list list1 list2)
-                 (when key      (list :key key))
-                 (when test     (list :test test))
-                 (when test-not (list :test-not test-not)))))
+ (if (and (deep-bound? list1) (deep-bound? list2))
+     (apply #'union (append (list list1 list2)
+                            (when key      (list :key key))
+                            (when test     (list :test test))
+                            (when test-not (list :test-not test-not))))
+      (let ((z (apply #'funcallv
+                      #'union
+                      (append (list list1 list2)
+                              (when key      (list :key key))
+                              (when test     (list :test test))
+                              (when test-not (list :test-not test-not))))))
+        z)))

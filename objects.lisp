@@ -46,7 +46,8 @@
   (if (and (bound? objvar)
            (bound? slotname))
       (slot-value (value-of objvar) (value-of slotname))
-      (funcallv #'slot-value objvar slotname)))
+      (let ((z (funcallv #'slot-value objvar slotname)))
+       z)))
 
 (defun collect-slot-arg-pairs (initargs)
   (let ((pairs '()))
@@ -143,7 +144,8 @@ to the class of OBJ once it becomes bound."
  (if (and (bound? obj)
           (bound? slotname))
      (slot-exists-p (value-of obj) (value-of slotname))
-    (funcallv #'slot-exists-p (value-of obj) (value-of slotname))))
+     (let ((z (funcallv #'slot-exists-p (value-of obj) (value-of slotname))))
+      z)))
 
 ;; IN PROGRESS
 ;; note: the following functions was not tested yet
@@ -151,13 +153,15 @@ to the class of OBJ once it becomes bound."
 (defun slot-names-ofv (obj)
  (if (bound? obj)
      (slot-names-of (value-of obj))
-     (funcallv #'slot-names-of obj)))
+     (let ((z (funcallv #'slot-names-of obj)))
+      z)))
 
 (defun slot-boundpv (obj slotname)
  (if (and (bound? obj)
           (bound? slotname))
      (slot-boundp (value-of obj) (value-of slotname))
-     (funcallv #'slot-boundp (value-of obj) (value-of slotname))))
+     (let ((z (funcallv #'slot-boundp (value-of obj) (value-of slotname))))
+      z)))
 
 (defun reconcile-objectsv (objvar1 objvar2)
   (let ((slots1 (slot-names-ofv objvar1))
