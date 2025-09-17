@@ -122,4 +122,5 @@
     :objectp
     :eqv
     :funcallgv
-    :setq-domains))
+    :setq-domains
+    :listv-equalv))

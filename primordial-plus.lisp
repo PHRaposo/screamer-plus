@@ -1,5 +1,48 @@
- ;; TESTS FROM SCREAMER-PLUS DOCUMENTATION
- ;; by Simon White
+ ;;;; -*- mode: common-lisp;   common-lisp-style: modern;    coding: utf-8; -*-
+;;;;
+;;;; Screamer-Plus: A modernized constraint logic programming library for Common Lisp
+;;;;
+;;;; Screamer-Plus is an extension of constraint propagation in Screamer,
+;;;; built upon a fundamental redesign of the core functions `funcallv` and `applyv`
+;;;; introduced in version 4.0.1 of Screamer.
+;;;;
+;;;; This new foundation enables automatic constraint propagation, eliminating the
+;;;; need for manual noticers and simplifying function/macro definitions.
+;;;; As a result, many of the macros and functions originally found in Screamer-Plus
+;;;; (by Simon White) — such as `CARV`, `CDRV`, `IFV`, and others — have been
+;;;; entirely rewritten or reimagined with cleaner semantics and greater efficiency.
+;;;;
+;;;; Some function names and general ideas are inspired by the original Screamer-Plus
+;;;; by Simon White, but all code in this package is original unless otherwise noted.”
+;;;;
+;;;; Contributions, feedback, and extensions are welcome.
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Copyright (c) 2025 Paulo Henrique Raposo
+;;;;
+;;;; Permission is hereby granted, free of charge, to any person obtaining a copy of
+;;;; this software and associated documentation files (the "Software"), to deal in
+;;;; the Software without restriction, including without limitation the rights to
+;;;; use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+;;;; the Software, and to permit persons to whom the Software is furnished to do so,
+;;;; subject to the following conditions:
+;;;;
+;;;; The above copyright and authorship notice and this permission notice shall be
+;;;; included in all copies or substantial portions of the Software.
+;;;;
+;;;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;;;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+;;;; FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+;;;; COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+;;;; IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+;;;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; THIS FILE CONTAINS TESTS FROM SCREAMER-PLUS DOCUMENTATION
+;;;; by Simon White
+;;;; ALONG WITH NEW TESTS FOR THE NEW FUNCTIONS AND FUNCTIONALITY
 
 (in-package :screamer-plus)
 
@@ -79,7 +122,9 @@
     (equal '((T => T IS T) (T => NIL IS NIL) (NIL => T IS T) (NIL => NIL IS T))
      (all-values (solution (list p '=> q 'is r) (static-ordering #'linear-force))))))
 
-;; note: this version of MY-MEMBERV uses IFV-REC, which does not allow recursive calls.
+;; note: this version of MY-MEMBERV uses IFV-REC,
+;; which allows recursive calls (unlike the new IFV).
+
 (defun my-memberv (m ll)
  (when ll
      (ifv-rec (equalv m (carv ll))
@@ -359,6 +404,15 @@
 
 ;; TODO: test-reconcile
 
+(defun test-listv-equalv ()
+ (let* ((x (screamer::variablize (n-variables 3 'an-integer-betweenv 0 10)))
+       (y (a-member-ofv '((0 1 2) (3 4 5) (6 7 8 9) (10 11 12 13)))))
+ (assert! (listv-equalv x y))
+ (known? (andv (memberv (carv x) '(0 3))
+               (memberv (secondv x) '(1 4))
+               (memberv (thirdv x) '(2 5))
+               (memberv y '((0 1 2) (3 4 5)))))))
+
 (defun test-mapcarv ()
 (let* ((a (a-listv))
        (b (a-listv))
@@ -529,6 +583,7 @@
               test-class-ofv
               test-class-namev
               test-slot-exists-pv
+              test-listv-equalv
               test-mapcarv
               test-maplistv
               test-mapv.1
@@ -609,6 +664,7 @@
               test-class-ofv
               test-class-namev
               ;test-slot-exists-pv
+              test-listv-equalv
               test-mapcarv
               test-maplistv
               test-mapv.1

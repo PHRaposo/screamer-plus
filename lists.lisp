@@ -43,28 +43,67 @@
 (in-package :screamer+)
 
 (defun carv (x)
- (let ((x (value-of x)))
- (typecase x
-  (list (car x))
-  (screamer::variable
-   (funcallv #'car x))
-  (otherwise (error "Cannot take CARV of ~A~%" x)))))
+  (let ((x (value-of x)))
+    (typecase x
+      (list (car x))
+      (screamer::variable
+       (let ((z (funcallv #'car x)))
+         (assert! (listpv x))
+         (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                         (variable? (value-of x))
+                         (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                     x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (car lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+         z))
+      (otherwise (error "Cannot take CARV of ~A~%" x)))))
 
 (defun cdrv (x)
- (let ((x (value-of x)))
- (typecase x 
-  (list (cdr x))
-  (screamer::variable
-   (funcallv #'cdr x))
-  (otherwise (error "Cannot take CDRV of ~A~%" x)))))
+  (let ((x (value-of x)))
+    (typecase x 
+      (list (cdr x))
+      (screamer::variable
+       (let ((z (funcallv #'cdr x)))
+         (assert! (listpv x))
+         (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                         (variable? (value-of x))
+                         (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                     x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (cdr lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+         z))
+      (otherwise (error "Cannot take CDRV of ~A~%" x)))))
 
 (defun restv (x)
- (let ((x (value-of x)))
- (typecase x 
-  (list (rest x))
-  (screamer::variable
-   (funcallv #'rest x))
-  (otherwise (error "Cannot take RESTV of ~A~%" x)))))
+  (let ((x (value-of x)))
+    (typecase x 
+      (list (rest x))
+      (screamer::variable
+       (let ((z (funcallv #'rest x)))
+         (assert! (listpv x))
+         (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                         (variable? (value-of x))
+                         (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                     x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (rest lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+         z))
+      (otherwise (error "Cannot take RESTV of ~A~%" x)))))
 
  (defun consv (x y)
  (let* ((z (funcallv #'cons (value-of x) (value-of y)))
@@ -75,91 +114,260 @@
    z))
 
 (defun nthv (n lst)
-(let ((n (value-of n))
-      (lst (value-of lst)))
- (typecase lst
-  (list (typecase n 
-         (integer (nth n lst))
-         (screamer::variable (funcallv #'nth n lst))
-         (otherwise (error "Cannot take NTHV ~A of ~A.~%" n lst))))
-  (screamer::variable (funcallv #'nth n lst))
-  (otherwise (error "Cannot take NTHV ~A of ~A.~%" n lst)))))
+  (let ((n (value-of n))
+        (lst (value-of lst)))
+    (typecase lst
+      (list (typecase n 
+              (integer (nth n lst))
+              (screamer::variable (funcallv #'nth n lst))
+              (otherwise (error "Cannot take NTHV ~A of ~A.~%" n lst))))
+      (screamer::variable
+        (let* ((z (funcallv #'nth n lst)))
+          (assert! (listpv lst))
+          (assert! (integerpv n))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                         (bound? n)
+                         (variable? (value-of lst))
+                         (screamer::enumerated-domain-p lst))
+                (if (screamer::set-enumerated-domain!
+                      lst (remove-if-not (lambda (l)
+                                          (screamer::generic-equal (nth (value-of n) l) (value-of z)))
+                                        (variable-enumerated-domain lst)))
+                    (screamer::run-noticers lst))))
+          z :dependencies (list lst n))
+          z))
+      (otherwise (error "Cannot take NTHV ~A of ~A.~%" n lst)))))
 
 (defun firstv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (first x))
-    (screamer::variable (funcallv #'first x))
-    (otherwise (error "Cannot take FIRSTV of ~A.~%" x)))))
+    (typecase x 
+      (list (first x))
+      (screamer::variable
+        (let ((z (funcallv #'first x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (first lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take FIRSTV of ~A.~%" x)))))
 
 (defun secondv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (second x))
-    (screamer::variable (funcallv #'second x))
-    (otherwise (error "Cannot take SECONDV of ~A.~%" x)))))
+    (typecase x 
+      (list (second x))
+      (screamer::variable
+        (let ((z (funcallv #'second x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (second lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take SECONDV of ~A.~%" x)))))
 
 (defun thirdv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (third x))
-    (screamer::variable (funcallv #'third x))
-    (otherwise (error "Cannot take THIRDV of ~A.~%" x)))))
+    (typecase x 
+      (list (third x))
+      (screamer::variable
+        (let ((z (funcallv #'third x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (third lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take THIRDV of ~A.~%" x)))))
 
 (defun fourthv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (fourth x))
-    (screamer::variable (funcallv #'fourth x))
-    (otherwise (error "Cannot take FOURTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (fourth x))
+      (screamer::variable
+        (let ((z (funcallv #'fourth x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (fourth lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take FOURTHV of ~A.~%" x)))))
 
 (defun fifthv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (fifth x))
-    (screamer::variable (funcallv #'fifth x))
-    (otherwise (error "Cannot take FIFTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (fifth x))
+      (screamer::variable
+        (let ((z (funcallv #'fifth x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (fifth lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take FIFTHV of ~A.~%" x)))))
 
 (defun sixthv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (sixth x))
-    (screamer::variable (funcallv #'sixth x))
-    (otherwise (error "Cannot take SIXTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (sixth x))
+      (screamer::variable
+        (let ((z (funcallv #'sixth x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (sixth lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take SIXTHV of ~A.~%" x)))))
 
 (defun seventhv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (seventh x))
-    (screamer::variable (funcallv #'seventh x))
-    (otherwise (error "Cannot take SEVENTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (seventh x))
+      (screamer::variable
+        (let ((z (funcallv #'seventh x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (seventh lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take SEVENTHV of ~A.~%" x)))))
 
 (defun eighthv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (eighth x))
-    (screamer::variable (funcallv #'eighth x))
-    (otherwise (error "Cannot take EIGHTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (eighth x))
+      (screamer::variable
+        (let ((z (funcallv #'eighth x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (eighth lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take EIGHTHV of ~A.~%" x)))))
 
 (defun ninthv (x)
   (let ((x (value-of x)))
-  (typecase x 
-    (list (ninth x))
-    (screamer::variable (funcallv #'ninth x))
-    (otherwise (error "Cannot take NINTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (ninth x))
+      (screamer::variable
+        (let ((z (funcallv #'ninth x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (ninth lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take NINTHV of ~A.~%" x)))))
 
 (defun tenthv (x)
   (let ((x (value-of x))) 
-  (typecase x 
-    (list (tenth x))
-    (screamer::variable (funcallv #'tenth x))
-    (otherwise (error "Cannot take TENTHV of ~A.~%" x)))))
+    (typecase x 
+      (list (tenth x))
+      (screamer::variable
+        (let ((z (funcallv #'tenth x)))
+          (assert! (listpv x))
+          (attach-noticer!
+          #'(lambda ()
+              (when (and (bound? z)
+                          (variable? (value-of x))
+                          (screamer::enumerated-domain-p x))
+                (if (screamer::set-enumerated-domain!
+                      x (remove-if-not (lambda (lst)
+                                        (screamer::generic-equal (tenth lst) (value-of z)))
+                                      (variable-enumerated-domain x)))
+                    (screamer::run-noticers x))))
+          z :dependencies (list x))
+          z))
+      (otherwise (error "Cannot take TENTHV of ~A.~%" x)))))
 
 (defun lengthv (x)
   (let ((x (value-of x)))
   (typecase x 
     (list (length x))
-    (screamer::variable (funcallv #'length x))
+    (screamer::variable 
+     (let ((z (funcallv #'length x)))
+        (attach-noticer!
+         #'(lambda ()
+            (when (and (bound? z)
+                       (variable? (value-of x))
+                       (screamer::enumerated-domain-p x))
+            (if (screamer::set-enumerated-domain!
+                 x (remove-if-not (lambda (el)
+                                   (= (length el) (value-of z)))
+                                  (variable-enumerated-domain x)))
+                (screamer::run-noticers x))))
+          z :dependencies (list x))
+        z))
     (otherwise (error "Cannot take LENGTHV of ~A.~%" x)))))
 
 (defun nthcdrv (n lst)
@@ -173,6 +381,67 @@
             (otherwise (error "Cannot take NTHCDRV ~A of ~A.~%" n lst))))
     (screamer::variable (funcallv #'nthcdr n lst))
     (otherwise (error "Cannot take NTHCDRV ~A of ~A.~%" n lst)))))
+
+
+(defun listv-equalv (x y)
+ (let ((x (value-of x))
+       (y (value-of y)))
+ (cond ((listp x)
+        (cond ((listp y)
+               (equalv x y))
+
+              ((variable? y)
+               (assert! (listpv y))
+               (assert! (=v (lengthv x) (lengthv y)))
+               (let ((z (a-booleanv))
+                     (all-equalv '()))
+               (attach-noticer! #'(lambda nil) z :dependencies (list x y))
+               (dotimes (i (length x))
+                (push (equalv (nthv i x) (nthv i y)) all-equalv))
+               (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+               z))))
+
+        ((listp y)
+         (when (variable? x)
+               (assert! (listpv x))
+               (assert! (=v (lengthv x) (lengthv y)))
+               (let ((z (a-booleanv))
+                     (all-equalv '()))
+                (dotimes (i (length y))
+                (push (equalv (nthv i x) (nthv i y)) all-equalv))
+                (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+                z)))
+
+        ((and (variable? x) (variable? y))
+            (assert! (listpv x))
+            (assert! (listpv y))
+            (let ((z (a-booleanv)))
+             (assert! (=v (lengthv x) (lengthv y)))
+             (attach-noticer! #'(lambda nil) z :dependencies (list x y))
+             (cond ((and (bound? x-len) (bound? y-len))
+                     (let ((all-equalv '()))
+                      (dotimes (i (value-of x-len))
+                        (push (equalv (nthv i x) (nthv i y)) all-equalv))
+                    (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+                    z))
+                   
+                  ((or (and (bound? x-len) (not (bound? y-len)))
+                       (and (not (bound? x-len)) (bound? y-len)))
+                   (let ((all-equalv '()))
+                     (dotimes (i (value-of x-len))
+                        (push (equalv (nthv i x) (nthv i y)) all-equalv))
+                     (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+                     z))
+                   
+                    (t (let ((all-equalv '()))
+                        (dolist (variable (list x y))
+                         (attach-noticer!
+                          #'(lambda ()
+                             (when (or (bound? x-len) (bound? y-len))
+                                   (dotimes (i (value-of x-len))
+                                    (push (equalv (nthv i x) (nthv i y)) all-equalv))
+                             (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+                        z))))))))))))
 
 (defun make-listv (size &key (initial-element '(make-variable)))
  (if (and (variable? size)
@@ -189,9 +458,9 @@
       listv)))
 
 (defun mapcarv (function list &rest more-lists)
-  "Constraint-propagating MAPCAR for Screamer-Plus."
   (when (variable? function)
-    (error "MAPCARV does not allow FUNCTION to be an unbound variable."))
+    (error "The current implementation does not allow the first argument~%~
+    of MAPCARV to be an unbound variable."))
   (let* ((list (value-of list))
          (more-lists (mapcar #'value-of more-lists))
          (z (if (or (variable? list)

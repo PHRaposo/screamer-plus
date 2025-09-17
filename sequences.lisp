@@ -111,14 +111,14 @@
                                  (when end (list end)))))))
 
 (defun countv (item sequence &key from-end start end key test test-not)
-(let ((sequence (value-of sequence))
-      (arguments (append (list item sequence)
-                         (when from-end (list :from-end from-end))
-                         (when start (list :start start))
-                         (when end (list :end end))
-                         (when key (list :key key))
-                         (when test (list :test test))
-                         (when test-not (list :test-not test-not)))))
+(let* ((sequence (value-of sequence))
+       (arguments (append (list item sequence)
+                          (when from-end (list :from-end from-end))
+                          (when start (list :start start))
+                          (when end (list :end end))
+                          (when key (list :key key))
+                          (when test (list :test test))
+                          (when test-not (list :test-not test-not)))))
     (when (some #'identity (mapcar #'variable? (cdr arguments)))
         (error "The current implementation does not allow any optional argument~%~
         of COUNTV to be an unbound variable."))
@@ -145,3 +145,9 @@
                 (assert! (everyv (lambda (el) (memberv el z)) sequence)))
                (t (map nil (lambda (el) (assert! (memberv el z))) sequence)))
          (value-of z)))))
+
+;; compat
+
+(defun members-ofv (x)
+"DEPRECATED. Use remove-duplicatesv instead."
+ (remove-duplicatesv x :test #'equal))

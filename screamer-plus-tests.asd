@@ -40,24 +40,13 @@
 ;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defsystem :screamer-plus
+(defsystem :screamer-plus-tests
   :serial t
   :licence "MIT"
   :description "Screamer Plus: Additional functions/macros for Screamer."
   :author "Paulo Henrique Raposo"
   :maintainer "Paulo Henrique Raposo"
   :version "0.2.0"
-  :depends-on ((:version :screamer "4.0.1") :closer-mop)
-  :components
-  ((:file "screamer-patch")
-   (:file "package")
-   (:file "screamer-plus")
-   (:file "lists")
-   (:file "sequences")
-   (:file "sets")
-   (:file "arrays")
-   (:file "objects")))
-
-(defmethod perform ((o test-op) (c (eql (find-system :screamer-plus))))
-  (load-system :screamer-plus-tests)
-  (funcall (intern (string '#:test-screamer-plus) :screamer-plus-tests)))
+  :depends-on ((:version :screamer "4.0.1") :closer-mop :screamer-plus :fiveam)
+  :components ((:file "primordial-plus")
+               (:file "tests")))

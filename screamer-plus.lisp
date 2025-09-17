@@ -164,7 +164,7 @@ to DEFPACKAGE, and automatically injects two additional options:
          (final-clauses (if (and (consp last-clause) (eq (first last-clause) 't))
                              clauses
                              (append clauses '((t nil)))))
-          (gsyms (mapcar (lambda (_) (gensym "CONDV")) final-clauses))
+          (gsyms (mapcar (lambda (_) (declare (ignorable _)) (gensym "CONDV")) final-clauses))
           (bodies (mapcar (lambda (clause)
                             (let ((body (cdr clause)))
                               (if (or (null body)
@@ -259,10 +259,6 @@ a lambda function is constructed and returned.
            (quote ,var) ,var
            (quote ,value) ,value)
            (values ,retval))))
-
-(defun members-ofv (x)
-"DEPRECATED. Use remove-duplicatesv instead."
- (remove-duplicatesv x :test #'equal))
 
 (defun not-equalv (x y &key (full-propagation nil))
 "Redesigned from original Screamer-Plus.
