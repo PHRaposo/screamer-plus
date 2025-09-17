@@ -73,6 +73,6 @@
 ;;;                  - SBCL 2.5.8
 ;;;                  - Allegro Common LISP 11.0
 ;;;                  - LispWorks 8.0.1
-;;;                  - Clozure Common LISP 1.13 (SLOT-EXISTS-PV is not working) 
+;;;                  - Clozure Common LISP 1.13
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

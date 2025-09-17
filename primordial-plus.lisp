@@ -394,8 +394,6 @@
 
 (defclass house () (number))
 
-#-ccl
-;; needs work in CCL
 (defun test-slot-exists-pv ()
 (let* ((x (a-member-ofv (list (make-instance 'house)
                               (make-instance 'person)))))
@@ -524,7 +522,6 @@
    (make-equal y 'world)
    (known? (equalv z "*** HELLO WORLD ***"))))
 
-#-ccl
 (cl::defun prime-ordeal-plus ()
   (let ((bug? nil))
     (flet ((run-test (fn)
@@ -583,87 +580,6 @@
               test-class-ofv
               test-class-namev
               test-slot-exists-pv
-              test-listv-equalv
-              test-mapcarv
-              test-maplistv
-              test-mapv.1
-              test-mapv.2
-              test-everyv.1
-              test-everyv.2
-              test-somev
-              test-noteveryv
-              test-notanyv
-              test-at-leastv
-              test-at-mostv
-              test-exactlyv
-              test-countv
-              test-remove-duplicatesv
-              test-funcallinv
-              test-formatv)
-            ))
-    (when bug?
-      (error "Screamer Plus has a bug"))
-    t))
-
-#+ccl
-(cl::defun prime-ordeal-plus ()
-  (let ((bug? nil))
-    (flet ((run-test (fn)
-            (let ((result
-                    (handler-case
-                        (funcall fn)
-                      (error (e)
-                        (format t "Error in ~A: ~A~%" fn e)
-                        nil))))
-              (unless result
-                (format t "~%Test failed: ~A~%" fn)
-                (setf bug? t)))))
-      (mapc #'run-test
-            '(test-listpv
-              test-stringpv
-              test-symbolpv
-              test-listv
-              test-stringv
-              test-symbolv
-              test-booleanv-symbolv
-              test-ifv-1
-              test-ifv-2
-              test-impliesv-1
-              test-impliesv-2
-              test-my-memberv-ifv-rec
-              test-make-equal
-              test-condv
-              test-firstv
-              test-nthv-1
-              test-nthv-2
-              test-subseqv-1
-              test-subseqv-2
-              test-lengthv
-              test-consv-1
-              test-consv-2
-              test-carv-1
-              test-carv-2
-              test-cdrv-1
-              test-cdrv-2
-              test-appendv-1
-              test-appendv-2
-              test-make-listv
-              test-all-differentv
-              test-set-equalv
-              test-intersectionv-1
-              test-unionv-1
-              test-bag-equalv
-              test-subsetv
-              test-a-subset-ofv
-              test-make-arrayv
-              test-arefv
-              test-make-instancev
-              test-slot-valuev
-              test-classpv.1
-              test-classpv.2
-              test-class-ofv
-              test-class-namev
-              ;test-slot-exists-pv
               test-listv-equalv
               test-mapcarv
               test-maplistv

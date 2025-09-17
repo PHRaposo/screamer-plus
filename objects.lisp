@@ -138,13 +138,11 @@ to the class of OBJ once it becomes bound."
        obj) 
       z)))
 
-#-ccl
-;; needs work in CCL
 (defun slot-exists-pv (obj slotname)
  (if (and (bound? obj)
           (bound? slotname))
-     (slot-exists-p (value-of obj) (value-of slotname))
-     (let ((z (funcallv #'slot-exists-p (value-of obj) (value-of slotname))))
+     (if (slot-exists-p (value-of obj) (value-of slotname)) t)
+     (let ((z (funcallv #'(lambda (o n) (if (slot-exists-p o n) t)) (value-of obj) (value-of slotname))))
       z)))
 
 ;; IN PROGRESS

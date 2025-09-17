@@ -141,7 +141,6 @@
 (test test-class-namev
     (is (screamer-plus::test-class-namev)))
 
-#-ccl
 (test test-slot-exists-pv
     (is (screamer-plus::test-slot-exists-pv)))
 
