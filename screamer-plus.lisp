@@ -56,6 +56,9 @@ to DEFPACKAGE, and automatically injects two additional options:
      (:shadowing-import-from :screamer :defun :multiple-value-bind :y-or-n-p)
      (:use :cl :screamer :screamer+)))
 
+(defvar *maximum-domain-size* 100
+ "Specifies the maximum number of elements permitted in variable enumerated domain.")
+
 (defun slot-names-of (obj)
   (mapcar #'closer-mop:slot-definition-name
           (closer-mop:class-slots (class-of obj))))
@@ -224,7 +227,7 @@ appended with the suffix 'v', then this function is returned. Otherwise
 a lambda function is constructed and returned.
 "
  (let ((fn-name (third (multiple-value-list (function-lambda-expression f))))
-        (cfn-name nil))
+       (cfn-name nil))
     (setf cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
     (if (and (screamer::valid-function-name? fn-name)
              (fboundp cfn-name))
@@ -239,7 +242,7 @@ a lambda function is constructed and returned.
             (apply #'+v x)
             (apply #'+ x)))
  (screamer::variable (funcallv #'(lambda (lst) (apply #'+ lst)) listv))
- (otherwise (error "The argument for SUMV must be a list of a LISTV" x)))))
+ (otherwise (error "The argument for SUMV must be a list or a LISTV" x)))))
 
 ;; compatibility note
 ;; This section contains or original functions from original Screamer-Plus or
@@ -270,7 +273,7 @@ DEPRECATED. Use (notv (equalv ...)) instead."
 
 (defun funcallgv (f &rest x)
 "DEPRECATED. Use funcallv instead."
- (funcallv f x))
+ (apply #'funcallv (cons f x)))
 
 (defmacro-compile-time setq-domains (vars vals &aux (res nil))
 "Original from original Screamer-Plus."

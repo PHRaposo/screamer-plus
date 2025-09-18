@@ -93,7 +93,7 @@ whether x is a subset of y."
          (t (attach-noticer! 
              #'(lambda ()
                 (when (and (deep-bound? x)
-                           (<= (domain-size x) *maximum-list-domain-size*))
+                           (<= (domain-size x) *maximum-domain-size*))
                  (assert! (memberv z (all-values (a-subset-of (apply-substitution x)))))))
                x)
             z))))

@@ -61,6 +61,7 @@
     :deep-value-of
     :attach-noticer!)
  (:export
+    :define-screamer-plus-package
     :impliesv
     :not-equalv
     :??
@@ -123,4 +124,5 @@
     :eqv
     :funcallgv
     :setq-domains
-    :listv-equalv))
+    :listv-equalv
+    :*maximum-domain-size*))
