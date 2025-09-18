@@ -209,67 +209,91 @@
           (t (error "Cannot take NTHCDRV ~A of ~A.~%" n lst)))))
 
 (defun listv-equalv (x y)
- (let ((x (value-of x))
-       (y (value-of y)))
- (cond ((listp x)
-        (cond ((listp y)
-               (equalv x y))
+"An enhanced version of EQUALV for lists that works with both logic variables and lists.
 
-              ((variable? y)
-               (assert! (listpv y))
-               (assert! (=v (lengthv x) (lengthv y)))
-               (let ((z (a-booleanv))
-                     (all-equalv '()))
-               (attach-noticer! #'(lambda nil) z :dependencies (list x y))
-               (dotimes (i (length x))
-                (push (equalv (nthv i x) (nthv i y)) all-equalv))
-               (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+LISTV-EQUALV restricts its arguments to be A-LISTV.
+
+- This function behaves like EQUALV when:
+    - both arguments are ground lists, or
+    - one argument is a ground list and the other is a variable.
+
+- If one argument is a variable and the other is a list that contains variables, it returns
+a boolean variable Z and sets up constraints to ensure that:
+    - the variable has the same length as the list, and
+    - each corresponding element in the variable and the list are equal.
+
+- If both X and Y are variables, sets up constraints to ensure that their lengths are equal.
+Then, if the lengths are known, it ensures that each corresponding element in both variables
+are equal. Otherwise, when their lengths become known, restricts the variable Z to be true
+if and only if all corresponding elements are equal. Returns the boolean variable Z.
+"
+  (let ((x (value-of x))
+        (y (value-of y)))
+    (cond
+      ;; Both are ground lists or one is a ground list
+      ;; and the other is a variable
+      ((or (and (listp x) (listp y))
+           (and (listp x) (deep-bound? x) (variable? y))
+           (and (variable? x) (listp y) (deep-bound? y)))
+       (equalv (deep-value-of x) (deep-value-of y)))
+
+      ;; One is a list with variables, the other is a variable
+      ((and (listp x) (screamer::contains-variables? x) (variable? y))
+       (let ((len-x (length x))
+             (len-y (lengthv y))
+             (z (a-booleanv))
+             (all-equalv '()))
+         (assert! (listpv y))
+         (assert! (=v len-x len-y))
+         (attach-noticer! #'(lambda nil) z :dependencies (list x y))
+         (dotimes (i len-x)
+          (push (equalv (nth i x) (nthv i y)) all-equalv))
+         (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+         z))
+
+      ;; Symmetric case: variable and list with variables
+      ((and (listp y) (screamer::contains-variables? y) (variable? x))
+       (let ((len-x (lengthv x))
+             (len-y (length y))
+             (z (a-booleanv))
+             (all-equalv '()))
+         (assert! (listpv x))
+         (assert! (=v len-x len-y))
+         (attach-noticer! #'(lambda nil) z :dependencies (list x y))
+         (dotimes (i len-y)
+          (push (equalv (nthv i x) (nth i y)) all-equalv))
+         (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+         z))
+
+      ;; Both are variables
+      ((and (variable? x) (variable? y))
+       (let ((x-len (lengthv x))
+             (y-len (lengthv y))
+             (z (a-booleanv))
+             (all-equalv '()))
+         (assert! (listpv x))
+         (assert! (listpv y))
+         (assert! (=v x-len y-len))
+         (attach-noticer! #'(lambda nil) z :dependencies (list x y))
+         (cond ((or (bound? x-len) (bound? y-len))
+                ;; The case where the length is known
+                (dotimes (i (value-of x-len))
+                 (push (equalv (nthv i x) (nthv i y)) all-equalv))
+                (assert! (eqv z (apply #'andv (nreverse all-equalv))))
+                z)
+                ;; The case where the length is not yet known
+             (t (dolist (variable (list x y))
+                 (attach-noticer!
+                  #'(lambda ()
+                     (when (or (bound? x-len) (bound? y-len))
+                      (let ((all-equalv '()))
+                       (dotimes (i (value-of x-len))
+                         (push (equalv (nthv i x) (nthv i y)) all-equalv))
+                       (assert! (eqv z (apply #'andv (nreverse all-equalv)))))))
+                  variable))
                z))))
 
-        ((listp y)
-         (when (variable? x)
-               (assert! (listpv x))
-               (assert! (=v (lengthv x) (lengthv y)))
-               (let ((z (a-booleanv))
-                     (all-equalv '()))
-                (dotimes (i (length y))
-                (push (equalv (nthv i x) (nthv i y)) all-equalv))
-                (assert! (eqv z (apply #'andv (nreverse all-equalv))))
-                z)))
-
-        ((and (variable? x) (variable? y))
-            (assert! (listpv x))
-            (assert! (listpv y))
-            (let ((z (a-booleanv))
-                  (x-len (lengthv x))
-                  (y-len (lengthv y)))
-             (assert! (=v x-len y-len))
-             (attach-noticer! #'(lambda nil) z :dependencies (list x y))
-             (cond ((and (bound? x-len) (bound? y-len))
-                     (let ((all-equalv '()))
-                      (dotimes (i (value-of x-len))
-                        (push (equalv (nthv i x) (nthv i y)) all-equalv))
-                    (assert! (eqv z (apply #'andv (nreverse all-equalv))))
-                    z))
-                   
-                  ((or (and (bound? x-len) (not (bound? y-len)))
-                       (and (not (bound? x-len)) (bound? y-len)))
-                   (let ((all-equalv '()))
-                     (dotimes (i (value-of x-len))
-                        (push (equalv (nthv i x) (nthv i y)) all-equalv))
-                     (assert! (eqv z (apply #'andv (nreverse all-equalv))))
-                     z))
-                   
-                    (t (let ((all-equalv '()))
-                        (dolist (variable (list x y))
-                         (attach-noticer!
-                          #'(lambda ()
-                             (when (or (bound? x-len) (bound? y-len))
-                                   (dotimes (i (value-of x-len))
-                                    (push (equalv (nthv i x) (nthv i y)) all-equalv))
-                             (assert! (eqv z (apply #'andv (nreverse all-equalv))))))
-                          variable))
-                        z))))))))
+      (t (error "Unhandled case in LISTV-EQUALV for arguments: ~A ~A" x y)))))
 
 (defun make-listv (size &key (initial-element '(make-variable)))
  (if (and (variable? size)

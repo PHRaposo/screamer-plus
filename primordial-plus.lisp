@@ -306,12 +306,17 @@
   (all-values (third (solution (list x y same-bag) (static-ordering #'linear-force)))))))
 
 (defun test-subsetv ()
-  (let* ((x (n-variables 6 'a-member-ofv '(a b c d e f g h i j)))
-         (y '(a b c))
-         (sub (subsetpv x y)))
-    (assert! sub)
-    (every #'identity
-     (all-values (third (solution (list x y sub) (static-ordering #'linear-force)))))))
+ (let* ((*strategy* :ac)
+        (x (n-variables 6 'a-member-ofv '(a b c d e f)))
+        (y '(a b c))
+        (sub (subsetpv x y)))
+  (assert! sub)
+  (known? (andv (memberv (firstv x) '(a b c))
+                (memberv (secondv x) '(a b c))
+                (memberv (thirdv x) '(a b c))
+                (memberv (fourthv x) '(a b c))
+                (memberv (fifthv x) '(a b c))
+                (memberv (sixthv x) '(a b c))))))
 
 (defun test-a-subset-ofv ()
  (let* ((x (a-subset-ofv '(0 1 2 3))))

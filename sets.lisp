@@ -51,13 +51,6 @@ Test is a deterministic function which returns a boolean value."
     (assert! (everyv test z))
     z))
 
-(defun same-elementsv (x)
-  "Returns a variable constrained to have the same elements as x (order may differ)."
-  (let ((x (value-of x))
-        (z (make-variable)))
-    (assert! (set-equalv z x))
-    z))
-
 (defun subsetpv (x y &key (test #'equal))
 "Original from Screamer-Plus
 This function returns a boolean variable constrained to indicate
@@ -72,6 +65,13 @@ whether x is a subset of y."
    (assert! (eqv z (andv (subsetpv x y :test test)
                          (subsetpv y x :test test))))
    z))
+
+(defun same-elementsv (x)
+  "Returns a variable constrained to have the same elements as x (order may differ)."
+  (let ((x (value-of x))
+        (z (make-variable)))
+    (assert! (set-equalv z x))
+    z))
 
 (defun bag-equalv (x y &optional (test #'equal))
   "Returns a variable constrained to indicate whether the bags x and y are equal."
