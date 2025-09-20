@@ -89,6 +89,7 @@
     :appendv
     :make-listv
     :set-equalv
+    :a-subset-of
     :subsetpv
     :a-subset-ofv
     :intersectionv
@@ -104,6 +105,7 @@
     :slot-exists-pv
     :reconcile
     :funcallinv
+    :listv
     :mapcarv
     :maplistv
     :mapv
