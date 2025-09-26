@@ -53,13 +53,15 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
 
  #+allegro (setq excl:*redefinition-warnings* (remove :operator excl:*redefinition-warnings*))
 
-#+sbcl (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
+ #+sbcl (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
 
  #+lispworks (setf lw::*handle-warn-on-redefinition* :nil) 
 
  #+ccl (setq ccl:*warn-if-redefine* nil))
 
 (in-package :screamer)
+
+(eval-when (:compile-toplevel :load-toplevel :execute) (setf *screamer?* t))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (declaim (inline objectp)))
@@ -71,88 +73,30 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
   (mapcar #'closer-mop:slot-definition-name
           (closer-mop:class-slots (class-of obj))))
 
-(defun-compile-time copy-standard-object (obj)
-  "Shallow copy of a CLOS object (standard-object)."
-  (let* ((class (class-of obj))
-         (copy (make-instance class)))
-    (dolist (slot (slot-names-of obj))
-     (when (slot-boundp obj slot)
-      (setf (slot-value copy slot) (slot-value obj slot))))
-    copy))
-
-(defun slot-equal (x y slot)
- (the boolean
-  (let ((xb (slot-boundp x slot))
-        (yb (slot-boundp y slot)))
-    (cond ((and (not xb) (not yb)) t)
-          ((not (eql xb yb)) nil)
-          (t (let ((x (value-of (slot-value x slot)))
-                   (y (value-of (slot-value y slot))))
-              (typecase x
-                (vector      (and (vectorp y) (equalp x y)))
-                (array       (and (arrayp y) (equalp x y)))
-                (cons        (and (consp y) (equal x y)))
-                (string      (and (stringp y) (string= x y)))
-                (hash-table  (and (hash-table-p y) (equalp x y)))
-                (number      (and (numberp y) (eql x y)))
-                (symbol      (and (symbolp y) (eq x y)))
-                (t (eql x y)))))))))
-
-(defun standard-object-equal (x y)
-  (and (typep y (class-of x))
-       (every (lambda (slot)
-               (slot-equal x y slot))
-              (slot-names-of x))))
-
 (defun generic-equal (x y)
 ;; note: Should find a better name for this.
   "Compares two objects for equality considering their types and structures."
  (the boolean
   (typecase x
+    (symbol      (and (symbolp y) (eq x y)))
+    (number      (and (numberp y) (eql x y)))
     (vector      (and (vectorp y) (equalp x y)))
     (array       (and (arrayp y) (equalp x y)))
     (cons        (and (consp y) (equal x y)))
     (string      (and (stringp y) (string= x y)))
     (hash-table  (and (hash-table-p y) (equalp x y)))
-    (number      (and (numberp y) (eql x y)))
-    (symbol      (and (symbolp y) (eq x y)))
-    (standard-object (standard-object-equal x y))
+    ;; needs work: check slots one by one?
+    (standard-object  (typep y (type-of x)))
     (t           (eql x y)))))
 
- (defun variables-in (x)
-  (the list
-   (let ((x (value-of x)))
-       ;; Note: (value-of x) is required to dereference a variable 
-       ;; whose value has been unified (using EQUALV) with other 
-       ;; data types, such as cons cells, lists, and so on.
-       (typecase x
-         (cons (append (variables-in (car x))
-                       (variables-in (cdr x))))
-         (string nil)
-         ;; (simple-vector (apply #'append (map 'list #'variables-in x)))
-         (sequence (apply #'append (map 'list #'variables-in x)))
-         (array (flet ((mappend-arr (arr f)
-                         (let (coll)
-                           (dotimes (idx (array-total-size arr))
-                             (alexandria::appendf coll (funcall f (row-major-aref arr idx))))
-                           coll)))
-                  (mappend-arr x #'variables-in)))
-         (hash-table (let (coll)
-                       (maphash (lambda (k v)
-                                  (declare (ignore k))
-                                  (alexandria::appendf coll (variables-in v)))
-                                x)
-                       coll))
-         (standard-object (let (coll)
-                           (dolist (slot (slot-names-of x))
-                            (when (slot-boundp x slot)
-                               (alexandria:appendf coll (variables-in (slot-value x slot)))))
-                           coll))
-         (variable (list x))
-         (otherwise nil)))))
+(defun copy-slots (from to)
+ "From original Screamer Plus, by Simon White."
+ (declare (standard-object from to))
+  (dolist (s (slot-names-of from))
+     (setf (slot-value to s) (value-of (slot-value from s)))))
 
-(defun apply-substitution (x)
-  "If X is a SEQUENCE or HASH-TABLE, returns a freshly consed
+(defun apply-substitution (x &aux retobj)
+  "If X is a SEQUENCE or ARRAY, returns a freshly consed
 copy of the tree with all variables dereferenced.
 Otherwise returns the value of X."
   (let ((x (value-of x)))
@@ -176,18 +120,14 @@ Otherwise returns the value of X."
                  (setf (row-major-aref arr idx)
                        (apply-substitution (row-major-aref arr idx))))
                arr))
-      (hash-table
-       (let ((x (alexandria::copy-hash-table x)))
-         (maphash (lambda (k v) (setf (gethash k x) (apply-substitution v))) x)
-         x))
-       (standard-object (let ((copy (copy-standard-object x)))
-                              (dolist (slot (slot-names-of x))
-                                (when (slot-boundp x slot)
-                                    (setf (slot-value copy slot)
-                                          (apply-substitution (slot-value x slot)))))
-                              copy))
+      (standard-object   (setq retobj (make-instance (class-name (class-of x))))
+                          (copy-slots x retobj)
+                           retobj)
       (t x))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+ (setf *screamer?* nil))
+ 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; END OF PATCH
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
