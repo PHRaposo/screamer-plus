@@ -73,6 +73,31 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
   (mapcar #'closer-mop:slot-definition-name
           (closer-mop:class-slots (class-of obj))))
 
+(defun slot-equal (x y slot)
+ (the boolean
+  (let ((xb (slot-boundp x slot))
+        (yb (slot-boundp y slot)))
+    (cond ((and (not xb) (not yb)) t)
+          ((not (eql xb yb)) nil)
+          (t (let ((x (value-of (slot-value x slot)))
+                   (y (value-of (slot-value y slot))))
+              (typecase x
+                (vector      (and (vectorp y) (equalp x y)))
+                (array       (and (arrayp y) (equalp x y)))
+                (cons        (and (consp y) (equal x y)))
+                (string      (and (stringp y) (string= x y)))
+                (hash-table  (and (hash-table-p y) (equalp x y)))
+                (number      (and (numberp y) (eql x y)))
+                (symbol      (and (symbolp y) (eq x y)))
+                (t (eql x y)))))))))
+
+(defun standard-object-equal (x y)
+ (declare (standard-object x y))
+  (and (typep y (type-of x))
+       (every (lambda (slot)
+               (slot-equal x y slot))
+              (slot-names-of x))))
+
 (defun generic-equal (x y)
 ;; note: Should find a better name for this.
   "Compares two objects for equality considering their types and structures."
@@ -85,45 +110,8 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
     (cons        (and (consp y) (equal x y)))
     (string      (and (stringp y) (string= x y)))
     (hash-table  (and (hash-table-p y) (equalp x y)))
-    ;; needs work: check slots one by one?
-    (standard-object  (typep y (type-of x)))
+    (standard-object  (standard-object-equal x y))
     (t           (eql x y)))))
-
-(defun copy-slots (from to)
- "From original Screamer Plus, by Simon White."
- (declare (standard-object from to))
-  (dolist (s (slot-names-of from))
-     (setf (slot-value to s) (value-of (slot-value from s)))))
-
-(defun apply-substitution (x &aux retobj)
-  "If X is a SEQUENCE or ARRAY, returns a freshly consed
-copy of the tree with all variables dereferenced.
-Otherwise returns the value of X."
-  (let ((x (value-of x)))
-    (etypecase x
-      (cons (if (null (cdr (last x)))
-                ;; If terminates with nil (ie normal list)
-                ;; use mapcar to not consume stack
-                (mapcar #'apply-substitution x)
-                ;; Otherwise recurse on the car and cdr
-                (cons (apply-substitution (car x))
-                      (apply-substitution (cdr x)))))
-      (string x)
-      (simple-vector (map 'vector #'apply-substitution x))
-      (sequence (let ((copy (copy-seq x)))
-                  (dotimes (idx (length x))
-                    (setf (elt copy idx)
-                          (apply-substitution (elt x idx))))
-                  copy))
-      (array (let ((arr (alexandria::copy-array x)))
-               (dotimes (idx (array-total-size arr))
-                 (setf (row-major-aref arr idx)
-                       (apply-substitution (row-major-aref arr idx))))
-               arr))
-      (standard-object   (setq retobj (make-instance (class-name (class-of x))))
-                          (copy-slots x retobj)
-                           retobj)
-      (t x))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
  (setf *screamer?* nil))
