@@ -92,7 +92,7 @@ LIST, CONS, ARRAY, STRING and SYMBOL.")
                 (t (eql x y)))))))))
 
 (defun standard-object-equal (x y)
- (declare (standard-object x y))
+ ;(declare (standard-object x y))
   (and (typep y (type-of x))
        (every (lambda (slot)
                (slot-equal x y slot))
