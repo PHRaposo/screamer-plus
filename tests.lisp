@@ -87,6 +87,9 @@
 (test test-cdrv-2
     (is (screamer-plus::test-cdrv-2)))
 
+(test test-nthcdrv
+    (is (screamer-plus::test-nthcdrv)))
+
 (test test-appendv-1
     (is (screamer-plus::test-appendv-1)))
 

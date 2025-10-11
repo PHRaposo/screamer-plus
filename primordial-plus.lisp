@@ -245,6 +245,11 @@
     (make-equal tail '(h i))
     (known? (equalv '(g h i) x))))
 
+(defun test-nthcdrv ()
+(let* ((x (a-member-ofv '((0 1 2) (3 4 5) (6 7 8))))
+       (z (nthcdrv 1 x)))
+ (known? (memberv z '((1 2) (4 5) (7 8))))))
+
 (defun test-appendv-1 ()
 (let* ((x (make-variable))
        (z (appendv x '(3 4))))
@@ -573,6 +578,7 @@
               test-carv-2
               test-cdrv-1
               test-cdrv-2
+              test-nthcdrv
               test-appendv-1
               test-appendv-2
               test-make-listv
