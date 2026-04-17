@@ -269,6 +269,14 @@
  (dolist (var vars) (setq res (nconc (list var vals) res)))
  (cons 'setq res))
 
+(defun not-equalv (x y &key (full-propagation nil))
+"Redesigned from original Screamer-Plus.
+DEPRECATED. Use (notv (equalv ...)) instead."
+ (declare (ignore full-propagation))
+ (let ((z (a-booleanv)))  
+  (assert! (equalv z (funcallv #'(lambda (a b) (not (equal a b))) x y)))
+  z))
+
 ;; note: The following functions are nondeterministic generators
 ;; for subsets and partitions not included in the classic Screamer.
 ;; They were described in:

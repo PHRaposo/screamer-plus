@@ -92,5 +92,6 @@
     :carefully
     :eqv
     :setq-domains
+    :not-equalv
     :listv-equalv
     :*enumeration-limit*))
