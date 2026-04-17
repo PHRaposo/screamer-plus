@@ -47,17 +47,10 @@
   :author "Paulo Henrique Raposo"
   :maintainer "Paulo Henrique Raposo"
   :version "0.2.0"
-  :depends-on ((:version :screamer "4.0.1") :closer-mop)
+  :depends-on ((:version :screamer "4.0.1"))
   :components
-  ((:file "screamer-patch")
-   (:file "package")
+  ((:file "package")
    (:file "screamer-plus")
    (:file "lists")
    (:file "sequences")
-   (:file "sets")
-   (:file "arrays")
-   (:file "objects")))
-
-(defmethod perform ((o test-op) (c (eql (find-system :screamer-plus))))
-  (load-system :screamer-plus-tests)
-  (funcall (intern (string '#:test-screamer-plus) :screamer-plus-tests)))
+   (:file "sets")))

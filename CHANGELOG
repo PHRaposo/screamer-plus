@@ -91,4 +91,9 @@
 ;;; 07/11/2025      Fixed NTH-RULE-DOWN: propagates correctly from Z and X to N.
 ;;;                 Removed propagation from Z and N to X.
 ;;;
+;;; 17/04/2026      Removed arrays.lisp, objects.lisp, screamer-patch.lisp, screams+.lisp,
+;;;                 screamer-plus-tests ASDF system, primordial-plus.lisp and tests.lisp.
+;;;
+;;;                 Restore main functions/macros from Screamer White's version.
+;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
