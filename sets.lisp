@@ -23,6 +23,21 @@
 
 (in-package :screamer+)
 
+(defun subsetpv (x y &key (test #'equal))
+"Original from Screamer-Plus
+This function returns a boolean variable constrained to indicate
+whether x is a subset of y."
+ (let* ((x (value-of x))
+        (y (value-of y))
+        (z (funcallv #'subsetp x y :test test)))
+    z))
+
+(defun set-equalv (x y &key (test #'equal))
+  (let ((z (a-booleanv)))
+   (assert! (eqv z (andv (subsetpv x y :test test)
+                         (subsetpv y x :test test))))
+   z))
+
 (defun intersectionv (list1 list2 &key key test test-not)
   (if (and (deep-bound? list1) (deep-bound? list2))
       (apply #'intersection (append (list list1 list2)

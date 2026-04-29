@@ -179,7 +179,17 @@
   "Apply F to X paired with each element of Y."
   (mapcar #'(lambda (g) (funcall f (value-of x) g)) y))
 
-       
+(defun constraint-fn (f)
+  "Takes a CL function and returns its constraint version (suffix 'v').
+If no such function exists, returns a lambda wrapping applyv."
+  (let ((fn-name (third (multiple-value-list (function-lambda-expression f))))
+        (cfn-name nil))
+    (setf cfn-name (read-from-string (format nil "~av" fn-name) nil nil))
+    (if (and (SCREAMER::valid-function-name? fn-name)
+             (fboundp cfn-name))
+        (symbol-function cfn-name)
+        (lambda (&rest args) (value-of (applyv (value-of f) args))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Function: consv
 ;;;

@@ -24,7 +24,8 @@
 (in-package :screamer+)
 
 (defun car-rule-up (x z)
- (when (or (listp (value-of x)) (consp (value-of x)))
+ (when (and (or (listp (value-of x)) (consp (value-of x)))
+            (not (deep-bound? x)))
    (assert!-equalv z (car (value-of x))))
  (when (and (variable? (deep-value-of x))
             (not (eq (variable-enumerated-domain x) t))
@@ -63,7 +64,8 @@
       (otherwise (error "Cannot take CARV of ~A~%" x)))))
 
 (defun cdr-rule-up (x z)
-  (when (or (listp (value-of x)) (consp (value-of x)))
+  (when (and (or (listp (value-of x)) (consp (value-of x)))
+             (not (deep-bound? x)))
     (assert!-equalv z (cdr (value-of x))))
   (when (and (variable? (deep-value-of x))
              (not (eq (variable-enumerated-domain x) t))
@@ -184,7 +186,8 @@
  (listv-internal args))
 
 (defun length-rule-up (x z)
-  (when (listp (value-of x))
+  (when (and (listp (value-of x))
+             (not (deep-bound? x)))
     (assert!-equalv z (length (value-of x))))
   (when (and (variable? (deep-value-of x))
              (not (eq (variable-enumerated-domain x) t))
@@ -225,7 +228,8 @@
 (defun nth-rule-up (n x z)
   ;; X is BOUND to a list and n is bounded to an integer: assert z = (nth n x).
   (when (and (or (listp (value-of x)) (consp (value-of x)))
-             (integerp (value-of n)))
+             (integerp (value-of n))
+             (not (deep-bound? x)))
     (assert!-equalv z (nth (value-of n) (value-of x))))
   ;; X is a list and N is still a variable:
   ;; restrict n's index domain to [0, length(x)-1].

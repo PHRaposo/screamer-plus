@@ -46,6 +46,8 @@
     :variable?
     :set-enumerated-domain!
     :restrict-enumerated-domain!
+    :restrict-enumerated-antidomain!
+    :restrict-value!
     :run-noticers
     :variablize)
  (:export
@@ -94,4 +96,9 @@
     :setq-domains
     :not-equalv
     :listv-equalv
-    :*enumeration-limit*))
+    :*enumeration-limit*
+    :absv
+    :modv
+    :constraint-fn
+    :set-equalv
+    :subsetpv))

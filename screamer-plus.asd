@@ -53,4 +53,5 @@
    (:file "screamer-plus")
    (:file "lists")
    (:file "sequences")
-   (:file "sets")))
+   (:file "sets")
+   (:file "numbers")))
